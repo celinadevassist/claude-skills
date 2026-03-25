@@ -249,6 +249,33 @@ const EMPTY_ARRAY = [];
 const items = useSelector(state => state.data.items || EMPTY_ARRAY);
 ```
 
+### Fix 8: Persist API Key in localStorage for Try It Panel
+
+```javascript
+// Save auth when changed
+useEffect(() => {
+  if (globalAuthValue) {
+    localStorage.setItem('apidoc_auth', JSON.stringify({
+      type: globalAuthType, value: globalAuthValue
+    }));
+  }
+}, [globalAuthType, globalAuthValue]);
+
+// Restore on mount (before falling back to session token)
+const savedAuth = localStorage.getItem('apidoc_auth');
+if (savedAuth) {
+  const { type, value } = JSON.parse(savedAuth);
+  setGlobalAuthType(type);
+  setGlobalAuthValue(value);
+}
+```
+
+**Why:** API keys entered in the Try It panel are lost on page refresh without this. Store under a dedicated key (`apidoc_auth`), separate from session auth.
+
+### Fix 9: Copy Button on Response Panel
+
+Always include a copy button on the Try It response so users can easily extract response data. Use a `responseCopied` state with a 1.5s timeout for visual feedback.
+
 ---
 
 ## Swagger Decorator Patterns
@@ -317,8 +344,8 @@ export class CampaignController {
 ApiDocs/index.jsx
 ├── Constants: METHOD_COLORS, METHOD_LABELS, RESOURCE_EXAMPLES, SPECIAL_RESPONSES
 ├── Helpers: escapeHtml, highlightCurl, highlightJson, buildResponseExample, buildPayload
-├── TryItPanel component (self-contained with own state)
-│   ├── Auth row (Bearer/API Key selector + auto-fill)
+├── Global auth bar (set once, shared by all Try It panels, persisted in localStorage)
+├── TryItPanel component (receives global auth as props)
 │   ├── Path param inputs (pre-filled, lang='en')
 │   ├── Query param inputs
 │   ├── Request body textarea (pre-filled from Swagger schema)
