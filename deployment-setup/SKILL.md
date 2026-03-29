@@ -181,6 +181,15 @@ jobs:
 
 ## Docker Compose (Portainer Stack)
 
+The compose file below is a **template**. When applying to a new project, you MUST customize:
+
+1. **`image`** — replace `ghcr.io/ORG/REPO:latest` with the actual GHCR image path (e.g. `ghcr.io/celinadevassist/ems:latest`)
+2. **`container_name`** — use the project's short name (e.g. `ems`, `cartflow`, `idea-keep`)
+3. **`PORT`** — assign a unique port per project (3041, 3042, 3043, etc.)
+4. **Environment variables** — add project-specific vars (payment gateways, AI keys, S3, etc.) based on what the backend actually uses. Check the backend's `.env.production.example` or `config.manager.ts` for the full list.
+5. **Volume names** — prefix with the project name (e.g. `ems_app_data`, `cartflow_app_logs`)
+6. **Health check path** — use `/health` (outside the `/api` prefix) to match the monolith pattern
+
 ```yaml
 version: '3.8'
 
@@ -189,25 +198,39 @@ services:
     image: ghcr.io/ORG/REPO:latest
     container_name: APP_NAME
     ports:
-      - '${PORT:-3041}:3041'
+      - '${PORT:-3041}:${PORT:-3041}'
     environment:
+      # Application
       NODE_ENV: production
-      PORT: 3041
+      PORT: '${PORT:-3041}'
+      APP_NAME: '${APP_NAME}'
       APP_URL: '${APP_URL}'
-      DB_URI: '${DB_URI}'
-      JWT_SECRET: '${JWT_SECRET}'
-      JWT_EXPIRES_IN: '${JWT_EXPIRES_IN:-7d}'
-      MAX_REQUEST_SIZE: '${MAX_REQUEST_SIZE:-50mb}'
-      MAX_CONTENT_CHARS: '${MAX_CONTENT_CHARS:-80000}'
       FRONTEND_URL: '${FRONTEND_URL}'
-      API_BASE_URL: '${API_BASE_URL}'
+      MAX_REQUEST_SIZE: '${MAX_REQUEST_SIZE:-50mb}'
+
+      # Database
+      DB_URI: '${DB_URI}'
+
+      # JWT Authentication
+      JWT_SECRET: '${JWT_SECRET}'
+      JWT_EXPIRATION: '${JWT_EXPIRATION:-14d}'
+
+      # Email Configuration
+      EMAIL_PROVIDER: '${EMAIL_PROVIDER:-smtp}'
       EMAIL_FROM: '${EMAIL_FROM}'
       EMAIL_FROM_NAME: '${EMAIL_FROM_NAME}'
+      SMTP_HOST: '${SMTP_HOST}'
+      SMTP_PORT: '${SMTP_PORT:-465}'
+      SMTP_SECURE: '${SMTP_SECURE:-true}'
+      SMTP_USER: '${SMTP_USER}'
+      SMTP_PASSWORD: '${SMTP_PASSWORD}'
       EMAIL_VERIFICATION_URL: '${EMAIL_VERIFICATION_URL}'
       PASSWORD_RESET_URL: '${PASSWORD_RESET_URL}'
+
+      # Add project-specific vars below (payment, AI, S3, etc.)
     restart: unless-stopped
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3041/health']
+      test: ['CMD', 'curl', '-f', 'http://localhost:${PORT:-3041}/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -234,21 +257,38 @@ volumes:
 
 ### Variables to Set in Portainer
 
+**Core variables (every project):**
+
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `DB_URI` | MongoDB Atlas connection string | Yes |
 | `JWT_SECRET` | JWT signing key (min 32 chars). Generate: `openssl rand -hex 32` | Yes |
 | `APP_URL` | Public URL (e.g. `https://app.yourdomain.com`) | Yes |
 | `FRONTEND_URL` | CORS allowed origins. Comma-separated for multiple domains | Yes |
-| `API_BASE_URL` | Base URL for tracking links | Yes |
 | `EMAIL_FROM` | Default sender email | Yes |
 | `EMAIL_FROM_NAME` | Default sender display name | Yes |
-| `PORT` | App port (default: 3041) | No |
-| `JWT_EXPIRES_IN` | Token expiry (default: 7d) | No |
+| `APP_NAME` | Application display name | No |
+| `PORT` | App port (default: 3041). Use unique port per project | No |
+| `JWT_EXPIRATION` | Token expiry (default: 14d) | No |
 | `MAX_REQUEST_SIZE` | Max body size (default: 50mb) | No |
-| `MAX_CONTENT_CHARS` | Max content chars (default: 80000) | No |
+| `EMAIL_PROVIDER` | `smtp` or `mailrelay` (default: smtp) | No |
+| `SMTP_HOST` | SMTP server hostname | If using SMTP |
+| `SMTP_PORT` | SMTP port (default: 465) | No |
+| `SMTP_SECURE` | Use TLS (default: true) | No |
+| `SMTP_USER` | SMTP username | If using SMTP |
+| `SMTP_PASSWORD` | SMTP password | If using SMTP |
 | `EMAIL_VERIFICATION_URL` | Email verification link URL | No |
 | `PASSWORD_RESET_URL` | Password reset link URL | No |
+
+**Project-specific variables (add as needed):**
+
+Check the backend source for additional env vars. Common ones include:
+- Payment gateways (Ziina, Stripe, etc.)
+- AI services (OpenAI, etc.)
+- Cloud storage (AWS S3, etc.)
+- Third-party APIs
+
+Always scan `backend/src/config.manager.ts` or `backend/.env.production.example` for the full list when applying this skill to a new project.
 
 ---
 

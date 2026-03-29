@@ -284,6 +284,29 @@ dist
 *.log
 ```
 
+### Step 7b: Scan for Project-Specific Environment Variables
+
+Before creating the docker-compose.yml or setup page, scan the backend for all env vars it actually uses:
+
+```bash
+# Find all process.env references in the backend
+grep -rn 'process\.env\.' backend/src --include="*.ts" | grep -oP 'process\.env\.\K[A-Z_]+' | sort -u
+```
+
+This gives you the complete list of env vars to include in:
+1. The `docker-compose.yml` environment section
+2. The setup page's environment variables template and reference table
+3. The `.env.production.example` file
+
+Common project-specific vars to look for:
+- **Payment gateways**: `STRIPE_*`, `ZIINA_*`, `PAYPAL_*`
+- **AI services**: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`
+- **Cloud storage**: `AWS_*`, `S3_*`
+- **Third-party APIs**: `TWILIO_*`, `SENDGRID_*`
+- **App-specific**: `MAX_CONTENT_CHARS`, `BATCH_SIZE`, etc.
+
+Do NOT use a generic template — always customize env vars per project.
+
 ---
 
 ## Step 8: Development Mode with HMR (REQUIRED)
@@ -446,4 +469,4 @@ After the monolith is working and verified, **ask the user** about cleaning up t
 | Frontend shows blank page in Docker | `public/` folder empty | Check Dockerfile copies `frontend/dist` → `backend/public` |
 | CORS errors in dev | Frontend not using proxy | Add `/api` proxy in `vite.config.js` server section |
 | Static assets 404 in production | Wrong `rootPath` in ServeStaticModule | Verify `join(__dirname, '..', '..', 'public')` matches your dist structure |
-| Health check fails | `/health` route behind `/api` prefix | Create health controller without the global prefix, or use `/api/en/health` |
+| Health check fails | `/health` route behind `/api` prefix | Health controller must be registered WITHOUT the global `/api` prefix. Use `@Controller()` not `@Controller('health')`. Docker health check should hit `/health` directly. |
