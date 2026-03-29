@@ -332,6 +332,33 @@ dist
 
 ---
 
+## Post-Setup Cleanup (REQUIRED)
+
+After the monolith is working and verified, **ask the user** about cleaning up the old setup. Do not skip this step.
+
+### Prompt the user with these questions:
+
+1. **Old GitHub repos:** "The frontend and backend are now in a single repo. Do you want to delete or archive the old separate repos (e.g. `org/app-frontend`, `org/app-backend`)?"
+
+2. **Old deployments:** "The app now runs from a single container/port. Do you want to remove the old separate deployments?"
+   - Old Docker containers (separate frontend container, separate backend container)
+   - Old Portainer stacks for the split setup
+   - Old reverse proxy entries (e.g. separate Caddy/Nginx entries for `api.app.com` and `app.com`)
+
+3. **Old CI/CD pipelines:** "Do you have separate GitHub Actions workflows for the old frontend/backend repos that should be removed?"
+
+4. **DNS / proxy entries:** "Any old DNS records or proxy rules pointing to the separate frontend/backend ports that should be updated or removed?"
+
+5. **Dev server processes:** "Any old dev server processes still running (e.g. Vite on port 3000 + backend on port 3041 as separate services) that should be stopped?"
+
+### Why this matters:
+- Leftover containers waste server resources
+- Old repos cause confusion about which is the source of truth
+- Stale proxy entries can intercept traffic meant for the new monolith
+- Old CI/CD workflows may still trigger and push outdated images
+
+---
+
 ## Common Issues
 
 | Issue | Cause | Solution |
