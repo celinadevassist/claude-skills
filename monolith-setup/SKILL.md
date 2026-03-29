@@ -436,13 +436,34 @@ Then restart the backend.
 - [ ] Runs as non-root user
 - [ ] Single port exposed
 
-### Verification
+### Verification (MUST run before considering complete)
+
+Run these grep checks to confirm all monolith components exist:
+
+```bash
+# 1. ServeStaticModule is in app.module.ts
+grep -q 'ServeStaticModule' backend/src/app.module.ts && echo "OK: ServeStaticModule" || echo "MISSING: ServeStaticModule"
+
+# 2. Health exclude is in main.ts
+grep -q "exclude.*health" backend/src/main.ts && echo "OK: health excluded from prefix" || echo "MISSING: health exclude"
+
+# 3. SPA fallback is in main.ts
+grep -q "index.html" backend/src/main.ts && echo "OK: SPA fallback" || echo "MISSING: SPA fallback"
+
+# 4. Health endpoint skipped in SPA fallback
+grep -q "startsWith.*health" backend/src/main.ts && echo "OK: SPA skips /health" || echo "MISSING: SPA health skip"
+
+# 5. Vite proxy configured
+grep -q "proxy" frontend/vite.config.* && echo "OK: Vite proxy" || echo "MISSING: Vite proxy"
+```
+
+Then test with curl:
+- [ ] `curl http://localhost:PORT/health` returns JSON (not HTML)
+- [ ] `curl http://localhost:PORT/api/en/some-endpoint` returns API data
+- [ ] `curl http://localhost:PORT/` returns HTML (index.html)
+- [ ] `curl http://localhost:PORT/dashboard` returns HTML (SPA fallback)
+- [ ] `curl http://localhost:PORT/nonexistent.js` returns 404 (not index.html)
 - [ ] `docker build -t app .` succeeds
-- [ ] `curl http://localhost:3041/health` returns OK
-- [ ] `curl http://localhost:3041/api/en/some-endpoint` returns API data
-- [ ] `curl http://localhost:3041/` returns HTML (index.html)
-- [ ] `curl http://localhost:3041/dashboard` returns HTML (SPA fallback)
-- [ ] `curl http://localhost:3041/nonexistent.js` returns 404 (not index.html)
 
 ---
 
