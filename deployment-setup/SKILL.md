@@ -48,7 +48,7 @@ Stage 2: backend-builder
   → npm install + copy frontend dist to public/ + npm run build
 
 Stage 3: production
-  → node:18-alpine + production deps only + copy dist + public
+  → node:20-alpine + production deps only + copy dist + public
   → Runs as non-root user (nodejs:1001)
   → Health check via curl
   → Entry: dumb-init → node dist/src/main
@@ -67,7 +67,7 @@ Stage 3: production
 
 ```dockerfile
 # Stage 1: Build Frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
@@ -75,7 +75,7 @@ COPY frontend/ .
 RUN npm run build
 
 # Stage 2: Build Backend
-FROM node:18-alpine AS backend-builder
+FROM node:20-alpine AS backend-builder
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/backend
 COPY backend/package*.json ./
@@ -85,7 +85,7 @@ COPY --from=frontend-builder /app/frontend/dist ./public
 RUN npm run build
 
 # Stage 3: Production
-FROM node:18-alpine
+FROM node:20-alpine
 RUN apk add --no-cache dumb-init curl
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 WORKDIR /app

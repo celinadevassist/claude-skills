@@ -91,7 +91,7 @@ async function bootstrap() {
     // ...
   });
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', { exclude: ['health'] });
 
   // ... all other middleware (CORS, body parser, guards, etc.)
 
@@ -101,8 +101,8 @@ async function bootstrap() {
   if (existsSync(indexPath)) {
     const indexHtml = readFileSync(indexPath, 'utf-8');
     expressApp.use((req: any, res: any, next: any) => {
-      // Skip non-GET requests and API routes
-      if (req.method !== 'GET' || req.url.startsWith('/api/')) {
+      // Skip non-GET requests, API routes, and health check
+      if (req.method !== 'GET' || req.url.startsWith('/api/') || req.url.startsWith('/health')) {
         return next();
       }
       // Static file request (has extension) — let ServeStatic handle it
@@ -210,7 +210,7 @@ When `VITE_API_BASE_URL` is empty, axios uses the current origin — which is th
 
 ```dockerfile
 # Stage 1: Build Frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
@@ -218,7 +218,7 @@ COPY frontend/ .
 RUN npm run build
 
 # Stage 2: Build Backend
-FROM node:18-alpine AS backend-builder
+FROM node:20-alpine AS backend-builder
 RUN apk add --no-cache python3 make g++
 WORKDIR /app/backend
 COPY backend/package*.json ./
@@ -231,7 +231,7 @@ COPY --from=frontend-builder /app/frontend/dist ./public
 RUN npm run build
 
 # Stage 3: Production
-FROM node:18-alpine
+FROM node:20-alpine
 RUN apk add --no-cache dumb-init curl
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 
@@ -260,6 +260,7 @@ CMD ["node", "dist/src/main"]
 ```
 
 **Key decisions:**
+- **Node 20** — Required for `crypto.randomUUID()` used by `@nestjs/schedule`. Node 18 crashes on startup without it.
 - **`--legacy-peer-deps`** — Required if using Mantine 8 + React 19 (peer dep conflicts)
 - **`python3 make g++`** — Needed for native modules like bcrypt in backend build
 - **Non-root user** — Security: runs as `nodejs:1001`
@@ -368,7 +369,18 @@ cd frontend
 nohup npm exec vite -- --host 0.0.0.0 --port VITE_PORT > /tmp/vite-APPNAME-dev.log 2>&1 &
 ```
 
-### 8d. Verify HMR works
+### 8d. Add dev domain to CORS
+
+The backend's CORS config checks `FRONTEND_URL` for allowed origins. The dev domain must be included or API calls from the dev frontend will get 500 errors (CORS blocked).
+
+Add the dev domain to `FRONTEND_URL` in the backend's `.env`:
+```
+FRONTEND_URL=https://APPNAME.IP.sslip.io,https://APPNAME-dev.IP.sslip.io,http://localhost:3000
+```
+
+Then restart the backend.
+
+### 8e. Verify HMR works
 
 1. Open `https://APPNAME-dev.IP.sslip.io/` in browser
 2. Edit any React component
@@ -406,7 +418,8 @@ nohup npm exec vite -- --host 0.0.0.0 --port VITE_PORT > /tmp/vite-APPNAME-dev.l
 - [ ] `@nestjs/serve-static` installed
 - [ ] `ServeStaticModule.forRoot()` in `app.module.ts` with `exclude: ['/api']`
 - [ ] SPA fallback middleware in `main.ts` (after all other middleware, before `app.listen`)
-- [ ] `app.setGlobalPrefix('api')` — all API routes under `/api`
+- [ ] `app.setGlobalPrefix('api', { exclude: ['health'] })` — API routes under `/api`, health excluded
+- [ ] SPA fallback skips `/health` requests (add to the `startsWith` check)
 - [ ] Health check endpoint exists at `/health` (outside `/api` prefix for Docker)
 
 ### Frontend
