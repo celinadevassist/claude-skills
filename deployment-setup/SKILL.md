@@ -252,9 +252,55 @@ volumes:
 
 ---
 
+## Portainer Stack Deployment
+
+There are two recommended methods for deploying stacks in Portainer. Choose the one that fits your workflow:
+
+### Method 1: Repository (Recommended — Auto-Updates)
+
+This method pulls the `docker-compose.yml` directly from your GitHub repo. When you update the compose file in git, you can re-pull in Portainer with one click.
+
+1. **Stacks → Add Stack → Repository**
+2. Fill in:
+   - **Name:** Your app name (e.g. `ems`, `cartflow`)
+   - **Repository URL:** `https://github.com/ORG/REPO`
+   - **Repository reference:** `refs/heads/master` (or `refs/heads/main`)
+   - **Compose path:** `docker-compose.yml` (or `docker-compose.prod.yml` if separate)
+   - **Authentication:** ON (for private repos)
+     - **Username:** Your GitHub username
+     - **Personal Access Token:** GitHub PAT with `repo` scope
+3. **Environment variables:** Add all required variables (DB_URI, JWT_SECRET, etc.) in the Environment Variables section below the form
+4. Click **Deploy the stack**
+
+**To update after changes:**
+- Go to the stack in Portainer → click **Pull and redeploy**
+- This fetches the latest compose file from the repo and the latest image
+
+**Advantages:**
+- Compose file is version-controlled in git
+- One-click re-pull when compose changes
+- No manual copy-paste of YAML
+- Team members can see what's deployed by reading the repo
+
+### Method 2: Web Editor (Quick & Manual)
+
+Copy-paste the docker-compose.yml directly into Portainer. Good for quick deploys or when you want full manual control.
+
+1. **Stacks → Add Stack → Web Editor**
+2. **Name:** Your app name
+3. **Paste** the full docker-compose.yml content into the editor
+4. **Environment variables:** Add all required variables below
+5. Click **Deploy the stack**
+
+**To update after changes:**
+- Edit the compose content directly in Portainer's editor
+- Or delete and recreate the stack
+
+---
+
 ## Portainer Registry Setup (GHCR)
 
-Before pulling the image, add GitHub Container Registry to Portainer:
+Before Portainer can pull your Docker image, add GitHub Container Registry:
 
 1. **Settings → Registries → Add Registry → Custom Registry**
 2. Fill in:
@@ -265,7 +311,8 @@ Before pulling the image, add GitHub Container Registry to Portainer:
    - **Password:** GitHub Personal Access Token
 
 3. **Create PAT:** github.com/settings/tokens → Generate new token (classic)
-   - Scope: `read:packages` only
+   - Scope: `read:packages` (required for pulling images)
+   - Scope: `repo` (also needed if using Repository deploy method with private repos)
    - Copy token → paste as Password in Portainer
 
 ---
@@ -336,14 +383,15 @@ dist
 Create a React page at `src/pages/Settings/Setup/index.jsx` that contains:
 
 1. **Registry setup** — Table with GHCR fields + PAT creation steps
-2. **Docker Compose** — Full stack file with copy button
-3. **Environment Variables** — Template with copy button
-4. **Variable Reference** — Table explaining each variable
-5. **NPM Proxy** — Domain, scheme, hostname, port, SSL settings
-6. **Deploy** — Click "Deploy the stack" in Portainer
-7. **Verify** — Checklist (visit domain, check /health, create account, test API keys)
-8. **Update** — "Pull and redeploy" in Portainer or `docker compose pull && docker compose up -d`
-9. **Troubleshooting** — Table of common issues and solutions
+2. **Deploy Method: Repository** — Step-by-step for Stacks → Add Stack → Repository with fields: repo URL, reference, compose path, authentication, env vars
+3. **Deploy Method: Web Editor** — Alternative: copy-paste docker-compose.yml into Portainer editor
+4. **Docker Compose** — Full stack file with copy button (for Web Editor method)
+5. **Environment Variables** — Template with copy button
+6. **Variable Reference** — Table explaining each variable
+7. **NPM Proxy** — Domain, scheme, hostname, port, SSL settings
+8. **Verify** — Checklist (visit domain, check /health, create account, test API keys)
+9. **Update** — "Pull and redeploy" in Portainer (works for both methods)
+10. **Troubleshooting** — Table of common issues and solutions
 
 ### Design Pattern
 - Use raw HTML/CSS with `setup-` prefixed class names (not Mantine)
