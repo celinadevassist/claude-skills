@@ -286,16 +286,94 @@ dist
 
 ---
 
+## Step 8: Development Mode with HMR (REQUIRED)
+
+Every project needs a dev environment where frontend changes are visible instantly without rebuilding. This step sets up Vite dev server with HMR behind a Caddy reverse proxy.
+
+### 8a. Configure Vite HMR for remote access
+
+Update `frontend/vite.config.js` server section with HMR settings for your sslip.io domain:
+
+```javascript
+server: {
+  port: 3001,          // Use a unique port per project (3000=ems, 3001=cartflow, etc.)
+  host: '0.0.0.0',
+  hmr: {
+    host: 'APPNAME-dev.IP.sslip.io',  // Your dev domain
+    protocol: 'wss',                    // WebSocket over HTTPS (Caddy handles SSL)
+    clientPort: 443,                    // Caddy's HTTPS port
+    overlay: true,
+  },
+  proxy: {
+    '/api': {
+      target: 'http://localhost:BACKEND_PORT',  // e.g. 3041, 3042
+      changeOrigin: true,
+    },
+    '/swagger-json': {
+      target: 'http://localhost:BACKEND_PORT',
+      changeOrigin: true,
+    },
+  },
+},
+```
+
+**Key settings:**
+- `host: '0.0.0.0'` — listen on all interfaces (required for remote access)
+- `hmr.protocol: 'wss'` — WebSocket Secure, because Caddy terminates SSL
+- `hmr.clientPort: 443` — browser connects to Caddy on 443, which proxies to Vite
+- `hmr.host` — must match the exact domain you'll access in the browser
+
+### 8b. Add Caddy dev entry
+
+Add a dev domain to `/etc/caddy/Caddyfile` that proxies to the Vite dev server:
+
+```
+APPNAME-dev.IP.sslip.io {
+    reverse_proxy localhost:VITE_PORT
+}
+```
+
+Then reload Caddy:
+```bash
+sudo caddy reload --config /etc/caddy/Caddyfile
+```
+
+### 8c. Start the Vite dev server
+
+```bash
+cd frontend
+nohup npm exec vite -- --host 0.0.0.0 --port VITE_PORT > /tmp/vite-APPNAME-dev.log 2>&1 &
+```
+
+### 8d. Verify HMR works
+
+1. Open `https://APPNAME-dev.IP.sslip.io/` in browser
+2. Edit any React component
+3. Changes should appear instantly without page refresh
+
+### Port Allocation Convention
+
+| Project | Backend Port | Vite Dev Port | Production Domain | Dev Domain |
+|---------|-------------|---------------|-------------------|------------|
+| ems     | 3041        | 3000          | ems.IP.sslip.io   | ems-dev.IP.sslip.io |
+| cartflow| 3042        | 3001          | cartflow.IP.sslip.io | cartflow-dev.IP.sslip.io |
+| idea-keep| 3043       | 3002          | idea-keep.IP.sslip.io | idea-keep-dev.IP.sslip.io |
+| (next)  | 3044        | 3003          | ...                | ...-dev.IP.sslip.io |
+
+---
+
 ## Development vs Production
 
 | Aspect | Development | Production (Docker) |
 |--------|-------------|---------------------|
-| Frontend | Vite dev server (port 3000) | Served by NestJS from `public/` |
-| Backend | NestJS (port 3041) | NestJS (port 3041) |
-| API calls | Vite proxy → localhost:3041 | Same origin (monolith) |
-| HMR | Yes (Vite) | No (static files) |
-| Ports exposed | 3000 + 3041 | 3041 only |
+| Frontend | Vite dev server with HMR | Served by NestJS from `public/` |
+| Backend | NestJS (backend port) | NestJS (same port) |
+| API calls | Vite proxy → backend | Same origin (monolith) |
+| HMR | Yes — instant updates | No (static files) |
+| Ports exposed | Vite port + backend port | Backend port only |
 | public/ folder | Empty/doesn't exist | Contains frontend build |
+| Access URL | `APPNAME-dev.IP.sslip.io` | `APPNAME.IP.sslip.io` |
+| Caddy config | `reverse_proxy localhost:VITE_PORT` | Serves from `dist/` or proxies to backend |
 
 ---
 
