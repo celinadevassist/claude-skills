@@ -96,27 +96,33 @@ async function bootstrap() {
   // ... all other middleware (CORS, body parser, guards, etc.)
 
   // SPA fallback: serve index.html for non-API routes (React Router support)
+  // IMPORTANT: re-read index.html on every request — see "Why per-request read" below.
   const expressApp = app.getHttpAdapter().getInstance();
-  const indexPath = join(__dirname, '..', '..', 'public', 'index.html');
-  if (existsSync(indexPath)) {
-    const indexHtml = readFileSync(indexPath, 'utf-8');
-    expressApp.use((req: any, res: any, next: any) => {
-      // Skip non-GET requests, API routes, and health check
-      if (req.method !== 'GET' || req.url.startsWith('/api/') || req.url.startsWith('/health')) {
+  const publicDir = join(__dirname, '..', '..', 'public');
+  const indexPath = join(publicDir, 'index.html');
+
+  expressApp.use((req: any, res: any, next: any) => {
+    // Skip non-GET requests, API routes, and health check
+    if (req.method !== 'GET' || req.url.startsWith('/api/') || req.url.startsWith('/health')) {
+      return next();
+    }
+    // Static file request (has extension) — let ServeStatic handle it
+    if (req.url.includes('.')) {
+      const filePath = join(publicDir, req.url.split('?')[0]);
+      if (existsSync(filePath)) {
         return next();
       }
-      // Static file request (has extension) — let ServeStatic handle it
-      if (req.url.includes('.')) {
-        const filePath = join(__dirname, '..', '..', 'public', req.url.split('?')[0]);
-        if (existsSync(filePath)) {
-          return next();
-        }
-        return res.status(404).json({ statusCode: 404, message: 'File not found' });
-      }
-      // SPA route — serve index.html
-      res.type('html').send(indexHtml);
-    });
-  }
+      return res.status(404).json({ statusCode: 404, message: 'File not found' });
+    }
+    // SPA route — read index.html from disk on every request so frontend
+    // redeploys are picked up without restarting the backend.
+    if (!existsSync(indexPath)) {
+      // Dev mode (no public/ folder yet) — let the request fall through.
+      return next();
+    }
+    const indexHtml = readFileSync(indexPath, 'utf-8');
+    res.type('html').send(indexHtml);
+  });
 
   const port = process.env.PORT || 3041;
   await app.listen(port);
@@ -124,9 +130,12 @@ async function bootstrap() {
 bootstrap();
 ```
 
-**Why read index.html once into memory:**
-- Avoids disk I/O on every request
-- The `if (existsSync(indexPath))` check means dev mode (no public/ folder) works fine — the fallback simply doesn't activate
+**Why per-request read (NOT in-memory cache):**
+- A frontend-only redeploy (rebuild SPA → swap `public/index.html` on the running container, e.g. via a volume mount or a frontend-only image rebuild) takes effect immediately. With an in-memory cache, the backend keeps serving the old hashed `<script>` tags forever and clients load mismatched bundles until you restart Node.
+- The disk I/O is negligible: `index.html` is a few kilobytes, the OS page cache holds it after the first read, and the throughput cost is invisible compared to even a single Mongo round trip in the same request.
+- `existsSync` per request makes dev mode (no `public/` folder yet) fall through cleanly without special-casing at boot.
+
+**Do not** read `index.html` once into memory at startup — that pattern silently breaks frontend redeploys until the next backend restart, and it's a real production incident waiting to happen.
 
 **Why this order matters:**
 1. API routes are registered first by NestJS

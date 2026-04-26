@@ -16,6 +16,13 @@ Skills are structured instructions that Claude Code can autonomously discover an
 | Skill | Description |
 |-------|-------------|
 | [api-platform](./api-platform/) | API key management, auto-generated API docs with interactive "Try It" panels, dual auth (JWT + API key), and Swagger decorator patterns for NestJS + React |
+| [bulk-db-audit](./bulk-db-audit/) | Audit MongoDB/Mongoose operations for performance anti-patterns; detects loops with individual DB calls that should use `bulkWrite`, `insertMany`, `updateMany`, or `$in` queries |
+| [deployment-setup](./deployment-setup/) | Build a Setup Guide page and Docker deployment infrastructure for NestJS + React monolith projects: Dockerfile, GitHub Actions CI/CD, Portainer stack config, NPM proxy setup |
+| [i18n-bilingual-rtl](./i18n-bilingual-rtl/) | English + Arabic bilingual support with full RTL, Tailwind logical properties, Cairo + Inter font pairing, Arabic-safe PDF/Excel exports, and lint rules that block hardcoded strings and physical CSS |
+| [logging-setup](./logging-setup/) | Production-grade structured logging for NestJS: JSON file-based logs with rotation, error serialization, and exception filters with full stack traces |
+| [monolith-setup](./monolith-setup/) | Convert separate NestJS backend + React frontend into a single monolithic deployment where the backend serves the SPA from `public/` with proper React Router fallback |
+| [nestjs-throttle](./nestjs-throttle/) | Production-ready rate limiting for NestJS monoliths (ServeStaticModule + API): prevents 429 errors on page refresh while still protecting auth endpoints |
+| [pwa-setup](./pwa-setup/) | Configure a Vite + React + NestJS monolith as an installable PWA: manifest, icon set, `vite-plugin-pwa` shell-cache, Android install banner, iOS install instruction sheet |
 
 ## Installation
 
