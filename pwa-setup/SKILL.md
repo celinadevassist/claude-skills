@@ -316,6 +316,155 @@ export function IosInstallSheet() {
 
 Mount both components in your root layout. They render to nothing on platforms where they're not relevant.
 
+### Step 7b: Mantine variant (recommended for projects using @mantine/core)
+
+If your project uses Mantine instead of Tailwind, swap the components above for these. They use Mantine theme tokens so they auto-flip in dark mode (see `mantine-theme-discipline`).
+
+**`InstallBanner.tsx` (Mantine)**
+
+```tsx
+import { Button, Group, Paper, Text } from '@mantine/core';
+import { IconDownload, IconX } from '@tabler/icons-react';
+import { useState } from 'react';
+import { usePwaInstall } from './usePwaInstall';
+
+const DISMISS_KEY = 'pwa.banner.dismissed';
+
+export function InstallBanner() {
+  const { canInstall, isIos, promptInstall } = usePwaInstall();
+  const [dismissed, setDismissed] = useState(
+    typeof window !== 'undefined' && Boolean(localStorage.getItem(DISMISS_KEY)),
+  );
+  if (isIos || !canInstall || dismissed) return null;
+
+  const dismiss = () => { localStorage.setItem(DISMISS_KEY, '1'); setDismissed(true); };
+
+  return (
+    <Paper pos="fixed" bottom={16} right={16} p="md" radius="md" shadow="md" withBorder
+           style={{ zIndex: 1000, maxWidth: 360 }}>
+      <Group justify="space-between" wrap="nowrap" mb="xs">
+        <Text fw={600} size="sm">Install this app</Text>
+        <Button variant="subtle" color="gray" size="compact-xs" onClick={dismiss}>
+          <IconX size={14} />
+        </Button>
+      </Group>
+      <Text size="xs" c="dimmed" mb="sm">
+        Add to your home screen for one-tap access and full-screen mode.
+      </Text>
+      <Button size="xs" leftSection={<IconDownload size={14} />}
+              onClick={async () => {
+                const outcome = await promptInstall();
+                if (outcome === 'dismissed') dismiss();
+              }}>
+        Install
+      </Button>
+    </Paper>
+  );
+}
+```
+
+**`IosInstallSheet.tsx` (Mantine)**
+
+```tsx
+import { Button, List, Modal, Stack, Text } from '@mantine/core';
+import { IconShare } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+import { usePwaInstall } from './usePwaInstall';
+
+const DISMISS_KEY = 'pwa.ios.dismissed';
+
+export function IosInstallSheet() {
+  const { isIos, installed } = usePwaInstall();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isIos || installed) return;
+    if (localStorage.getItem(DISMISS_KEY)) return;
+    const t = window.setTimeout(() => setOpen(true), 10_000);
+    return () => window.clearTimeout(t);
+  }, [isIos, installed]);
+
+  const dismiss = () => { localStorage.setItem(DISMISS_KEY, '1'); setOpen(false); };
+  if (!isIos || installed) return null;
+
+  return (
+    <Modal opened={open} onClose={dismiss} title="Install this app" centered size="sm">
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">Add this app to your home screen for one-tap access.</Text>
+        <List spacing="xs" size="sm">
+          <List.Item icon={<IconShare size={16} />}>
+            Tap the <strong>Share</strong> icon in Safari's toolbar
+          </List.Item>
+          <List.Item>Scroll and tap <strong>Add to Home Screen</strong></List.Item>
+          <List.Item>Tap <strong>Add</strong> in the top-right</List.Item>
+        </List>
+        <Button onClick={dismiss}>Got it</Button>
+      </Stack>
+    </Modal>
+  );
+}
+```
+
+**`UpdatePrompt.tsx` — service-worker registration with a Mantine notification**
+
+Replaces Step 8's bare `registerSW` with a user-visible "new version available" toast that includes a Reload button.
+
+```tsx
+import { useEffect } from 'react';
+import { notifications } from '@mantine/notifications';
+import { Button } from '@mantine/core';
+import { registerSW } from 'virtual:pwa-register';
+
+export function PwaRegistration() {
+  useEffect(() => {
+    const updateSW = registerSW({
+      onNeedRefresh() {
+        notifications.show({
+          id: 'pwa-update',
+          title: 'New version available',
+          message: <Button size="xs" mt={4} onClick={() => updateSW(true)}>Reload</Button>,
+          color: 'blue', autoClose: false, withCloseButton: true,
+        });
+      },
+      onOfflineReady() {
+        notifications.show({
+          title: 'Offline-ready',
+          message: 'The app shell is cached and will load instantly even on slow connections.',
+          color: 'green',
+        });
+      },
+    });
+  }, []);
+  return null;
+}
+```
+
+Mount `<PwaRegistration />` once near `<MantineProvider>` in `main.tsx`.
+
+### Step 7c: Generate the icon set from a single SVG (rsvg-convert)
+
+Maintaining 5 separate PNG files by hand is fragile. Keep one **source SVG** for the "any-purpose" icon and one for the maskable variant; generate every PNG size on demand:
+
+**`frontend/public/icons/source-any.svg`** — full bleed, can have rounded corners, can have edge content
+**`frontend/public/icons/source-maskable.svg`** — keep all meaningful pixels in the central 80% (Android crops the rest)
+
+Then run:
+
+```bash
+cd frontend/public/icons
+rsvg-convert -w 192 -h 192 source-any.svg       -o icon-192.png
+rsvg-convert -w 512 -h 512 source-any.svg       -o icon-512.png
+rsvg-convert -w 192 -h 192 source-maskable.svg  -o icon-192-maskable.png
+rsvg-convert -w 512 -h 512 source-maskable.svg  -o icon-512-maskable.png
+rsvg-convert -w 180 -h 180 source-any.svg       -o apple-touch-icon.png
+rsvg-convert -w 32  -h 32  source-any.svg       -o ../favicon-32.png
+rsvg-convert -w 16  -h 16  source-any.svg       -o ../favicon-16.png
+```
+
+`rsvg-convert` ships with `librsvg2-bin` on Debian/Ubuntu (`apt install librsvg2-bin`). Cross-platform alternatives: `sharp` (Node), `convert` (ImageMagick).
+
+When real branding lands later, swap the two SVGs and rerun — every downstream icon updates automatically.
+
 ### Step 8: Service worker registration
 
 `vite-plugin-pwa` with `injectRegister: 'auto'` injects a `<script>` that registers the SW automatically. If you need to react to "new version available," use `workbox-window`:
