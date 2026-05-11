@@ -110,6 +110,13 @@ skills:
     depends_on: [monolith-setup]
     description_short: "Installable PWA: manifest + maskable icons + service-worker shell-cache + Android/iOS install prompts"
 
+  responsive-layout-discipline:
+    type: setup
+    category: ui
+    level: 3
+    depends_on: [mantine-theme-discipline]
+    description_short: "Mantine breakpoint discipline: responsive Grid/SimpleGrid spans, ScrollArea for terminals/tables, no fixed widths"
+
   # ---------- Level 4: Operational surfaces (introspect the system) ----------
 
   setup-guide-page:
