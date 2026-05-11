@@ -22,6 +22,7 @@ Skills are structured instructions that Claude Code can autonomously discover an
 | [logging-setup](./logging-setup/) | Production-grade structured logging for NestJS: JSON file-based logs with rotation, error serialization, and exception filters with full stack traces |
 | [monolith-setup](./monolith-setup/) | Convert separate NestJS backend + React frontend into a single monolithic deployment where the backend serves the SPA from `public/` with proper React Router fallback |
 | [nestjs-throttle](./nestjs-throttle/) | Production-ready rate limiting for NestJS monoliths (ServeStaticModule + API): prevents 429 errors on page refresh while still protecting auth endpoints |
+| [project-metadata-refiner](./project-metadata-refiner/) | AI-driven audit of project identity — cross-references package.json, README, deployed og: tags, and git history to produce a `.project-meta.json` side-car with refined name, description, keywords, full SEO/OpenGraph metadata, and README intro |
 | [pwa-setup](./pwa-setup/) | Configure a Vite + React + NestJS monolith as an installable PWA: manifest, icon set, `vite-plugin-pwa` shell-cache, Android install banner, iOS install instruction sheet |
 
 ## Installation
