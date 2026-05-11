@@ -144,5 +144,22 @@ skills:
     depends_on: []
     description_short: "Audits package.json / README / og: tags / git history; emits .project-meta.json side-car"
 
-  # When adding a new skill, append it here AND update README.md's table. Lint
-  # script (TODO) will warn if a skill exists in the repo but not in this file.
+  project-skill-advisor:
+    type: audit
+    category: audit
+    level: null
+    depends_on: []
+    description_short: "Recommends which skills to apply to a project, in dependency-correct order; emits .project-skills.json"
+
+  skill-graph-position-inferrer:
+    type: audit
+    category: audit
+    level: null
+    depends_on: []
+    description_short: "Infers a new skill's correct skills-graph.yml entry (type / category / level / depends_on)"
+
+  # When adding a new skill, append it here AND update README.md's table.
+  # `scripts/lint-skills-graph.py` (run by .github/workflows/lint-skills-graph.yml
+  # on every push + PR) will fail the build if a skill exists in the repo but
+  # not in this file. Run the `skill-graph-position-inferrer` skill to get a
+  # proposed entry instead of writing one by hand.

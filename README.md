@@ -25,6 +25,16 @@ Skills are structured instructions that Claude Code can autonomously discover an
 | [project-metadata-refiner](./project-metadata-refiner/) | AI-driven audit of project identity — cross-references package.json, README, deployed og: tags, and git history to produce a `.project-meta.json` side-car with refined name, description, keywords, full SEO/OpenGraph metadata, and README intro |
 | [project-skill-advisor](./project-skill-advisor/) | Recommends which skills in this repo to apply to a given project, in dependency-correct order. Cross-references the project against [`skills-graph.yml`](./skills-graph.yml); emits a `.project-skills.json` side-car with three buckets (recommendations / alreadyApplied / notRecommended) for Mission Control's apply drawer to consume |
 | [pwa-setup](./pwa-setup/) | Configure a Vite + React + NestJS monolith as an installable PWA: manifest, icon set, `vite-plugin-pwa` shell-cache, Android install banner, iOS install instruction sheet |
+| [skill-graph-position-inferrer](./skill-graph-position-inferrer/) | Given a newly-added skill, infers its correct entry for [`skills-graph.yml`](./skills-graph.yml) — type, category, level, depends_on, description — by reading the SKILL.md, comparing against calibration peers, and scanning for explicit prerequisite signals. Outputs a copy-paste-ready YAML block with per-field confidence |
+
+## Adding a new skill
+
+1. `npx skill-builder` (or hand-write `SKILL.md`) to create the new skill folder.
+2. Run the [`skill-graph-position-inferrer`](./skill-graph-position-inferrer/) skill in Claude Code — it proposes the YAML entry for `skills-graph.yml`.
+3. Review the proposal, edit if needed, paste into `skills-graph.yml`.
+4. `git commit` — [`scripts/lint-skills-graph.py`](./scripts/lint-skills-graph.py) runs in CI ([workflow](./.github/workflows/lint-skills-graph.yml)) and fails the build if the skill exists on disk but is missing from the graph, has bad deps, has a cycle, or breaks any other contract.
+
+The lint catches the case where you skipped step 2 or 3. The inferrer makes step 2 cheap.
 
 ## Installation
 
