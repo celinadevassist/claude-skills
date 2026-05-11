@@ -433,7 +433,9 @@ These are the standards every suggested value must meet. If you can't meet the r
 
 ## Diagnostics — What to Flag
 
-Use these prefixes consistently so the diagnostics list filters cleanly later:
+**Every entry in `diagnostics` must be actionable.** Diagnostics drive badge counts in portfolio tools (Mission Control's `/projects` card, GitHub Action gates, etc.) — if it's not something the user can *do*, it doesn't belong in this array.
+
+Use these prefixes consistently so the list filters cleanly later:
 
 | Prefix | Meaning | Example |
 |--------|---------|---------|
@@ -444,6 +446,15 @@ Use these prefixes consistently so the diagnostics list filters cleanly later:
 | `BREAKING:` | Applying this suggestion has downstream cost | `BREAKING: name change from foo-app to foo-cms breaks npm consumers` |
 | `WARN:` | Audit ran into a soft failure | `WARN: homepage <url> unreachable — used codebase fallback` |
 | `TODO:` | Requires a creative/manual asset, not text | `TODO: create og-banner.png — 1200x630, branded` |
+| `RESOLVED:` | An earlier diagnostic that's now fixed (set when re-running on a project that already applied prior suggestions). The `RESOLVED:` prefix may carry a parenthetical qualifier like `RESOLVED (this run):` or `RESOLVED (since prior audit):` — both forms are valid. | `RESOLVED: package.json now has name='cartflow'` |
+
+### What does NOT belong in `diagnostics`
+
+- **Pure observations / context.** If you find yourself writing "the project is internal", "the stack is bilingual", "the repo has no public homepage" — that's context. It belongs in `$findings.brandDrift` or `$findings.inferredPurpose`, not in `diagnostics`.
+- **`NOTE:`-prefixed entries are forbidden.** They were emitted ad-hoc by earlier audit runs and silently inflated badge counts. If the observation is worth recording, put it in `$findings`; if it's not, drop it.
+- **Things that are true forever about the project's nature.** "Project is private", "repo uses master not main", "stack includes Stripe" — these are facts, not work. The diagnostic list tracks deltas between current and desired state, not the project's identity.
+
+A clean diagnostics list lets the badge count map 1:1 to "items still on the user's plate". If your audit produces a diagnostic the user can't act on, rewrite it so they can, or move it to `$findings`.
 
 ---
 
