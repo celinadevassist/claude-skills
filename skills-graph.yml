@@ -1,0 +1,148 @@
+# Skills dependency graph
+#
+# Single source of truth for ordering when applying skills to a project.
+# The `project-skill-advisor` skill reads this file, cross-references against
+# the project's actual code, and emits .project-skills.json with a topologically
+# sorted list of recommendations.
+#
+# Schema:
+#   skills:
+#     <slug>:
+#       type:               setup | audit | generative
+#       category:           foundation | auth | data | ui | audit | ops
+#       level:              integer (lower runs first), or null for `audit` skills
+#       depends_on:         [<slug>, ...]
+#       description_short:  one-line summary for the recommender's UI
+#
+# Levels are advisory — they reflect real prerequisites, not aesthetic order.
+# When `depends_on` is honored, level is mostly redundant; it exists so the UI
+# can group skills visually (Level 0 = "everything starts here", Level 5 =
+# "ship it").
+
+version: 1
+last_updated: "2026-05-11"
+
+categories:
+  foundation: "Module structure + base infrastructure"
+  auth:       "Authentication + identity + audit trail"
+  data:       "Database patterns + persistence"
+  ui:         "Frontend UX patterns"
+  audit:      "Code review tooling — can run anytime"
+  ops:        "Deployment + operations"
+
+skills:
+
+  # ---------- Level 0: Foundation (no deps, run first) ----------
+
+  monolith-setup:
+    type: setup
+    category: foundation
+    level: 0
+    depends_on: []
+    description_short: "Backend serves React SPA from /public — one origin, one deploy unit"
+
+  logging-setup:
+    type: setup
+    category: foundation
+    level: 0
+    depends_on: []
+    description_short: "Structured JSON logging + file rotation + exception filter with full stack traces"
+
+  # ---------- Level 1: Patterns that build on the foundation ----------
+
+  nestjs-throttle:
+    type: setup
+    category: foundation
+    level: 1
+    depends_on: [monolith-setup]
+    description_short: "Rate limiting that skips static assets and JWT users; protects auth + API-key routes"
+
+  jwt-auth-admin-seeded:
+    type: setup
+    category: auth
+    level: 1
+    depends_on: [monolith-setup, logging-setup]
+    description_short: "Drop-in JWT auth: login + refresh rotation, bcrypt, admin-seed script, AuthContext + ProtectedRoute"
+
+  # ---------- Level 2: Auth-dependent + UI patterns ----------
+
+  audit-log:
+    type: setup
+    category: auth
+    level: 2
+    depends_on: [jwt-auth-admin-seeded, logging-setup]
+    description_short: "Append-only audit trail attributed by user; admin-only filterable UI with payload drawer"
+
+  api-platform:
+    type: setup
+    category: auth
+    level: 2
+    depends_on: [jwt-auth-admin-seeded]
+    description_short: "API key management + auto-generated API docs + dual auth (JWT + API key)"
+
+  mantine-theme-discipline:
+    type: setup
+    category: ui
+    level: 2
+    depends_on: [monolith-setup]
+    description_short: "No hardcoded shades; theme tokens only — prevents pages from breaking in dark mode"
+
+  i18n-bilingual-rtl:
+    type: setup
+    category: ui
+    level: 2
+    depends_on: [monolith-setup]
+    description_short: "EN+AR bilingual + RTL + Cairo+Inter font pairing + Arabic-safe PDF/Excel"
+
+  # ---------- Level 3: UI sugar that benefits from earlier patterns ----------
+
+  spotlight-cmdk:
+    type: setup
+    category: ui
+    level: 3
+    depends_on: [mantine-theme-discipline]
+    description_short: "Cmd-K / Ctrl-K command palette with role-aware actions; pairs well after 5+ pages exist"
+
+  pwa-setup:
+    type: setup
+    category: ui
+    level: 3
+    depends_on: [monolith-setup]
+    description_short: "Installable PWA: manifest + maskable icons + service-worker shell-cache + Android/iOS install prompts"
+
+  # ---------- Level 4: Operational surfaces (introspect the system) ----------
+
+  setup-guide-page:
+    type: setup
+    category: ops
+    level: 4
+    depends_on: [monolith-setup, jwt-auth-admin-seeded, logging-setup]
+    description_short: "Admin-only /setup page with live checks (DB, proxy, systemd, env) + copy-paste reference snippets"
+
+  # ---------- Level 5: Ship it (last setup step) ----------
+
+  deployment-setup:
+    type: setup
+    category: ops
+    level: 5
+    depends_on: [monolith-setup]
+    description_short: "Dockerfile + GitHub Actions CI/CD + Portainer stack config + Nginx Proxy Manager setup"
+
+  # ---------- Audit skills: can run anytime, no level ordering ----------
+
+  bulk-db-audit:
+    type: audit
+    category: audit
+    level: null
+    depends_on: []
+    description_short: "Detects MongoDB loop-based DB calls; recommends bulkWrite / insertMany / $in queries"
+
+  project-metadata-refiner:
+    type: audit
+    category: audit
+    level: null
+    depends_on: []
+    description_short: "Audits package.json / README / og: tags / git history; emits .project-meta.json side-car"
+
+  # When adding a new skill, append it here AND update README.md's table. Lint
+  # script (TODO) will warn if a skill exists in the repo but not in this file.
