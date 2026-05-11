@@ -1,6 +1,6 @@
 ---
 name: "Project Metadata Refiner"
-description: "AI-driven audit of project identity. Cross-references package.json, README, deployed og: meta tags, and git history to produce a .project-meta.json side-car with refined name, description, keywords, full SEO/OpenGraph metadata, and README intro suggestions. Output is structured, non-destructive (writes one side-car file only), and ready for manual or scripted merge into package.json + README.md + index.html. Use when a project's name/description has drifted from what it actually does, before a public release, or when auditing an internal portfolio of projects."
+description: "AI-driven audit of project identity. Cross-references package.json, README, deployed og: meta tags, and git history to produce a .project-meta.json side-car with refined name, description, keywords, full SEO/OpenGraph metadata, and README intro suggestions. Then runs a Technical Completeness Pass that auto-fills missing technical assets (og:image placeholder, root README, LICENSE, missing pkg fields, og:/twitter: meta tags) using the side-car as the source of truth — so the project becomes structurally correct without touching hand-tuned business copy. Use when a project's name/description has drifted from what it actually does, before a public release, or when auditing an internal portfolio of projects."
 ---
 
 # Project Metadata Refiner
@@ -202,6 +202,144 @@ Compare what's *in the file* with what's *served live* (from Step 4). Difference
 Apply the **field quality rules** (next section) to produce each value. Write the side-car as JSON (not JSONC — the `$`-prefixed keys are valid JSON, the `//` comments above are documentation only) to `<project-root>/.project-meta.json` using 2-space indent.
 
 If `.project-meta.json` already exists, **read it first** — preserve any `$userNotes` or `$keep` blocks the user added by hand. Only overwrite the AI-generated sections.
+
+---
+
+## Step 7 — Technical Completeness Pass (Auto-Fill)
+
+After the side-car is written, run an idempotent pass that resolves every `MISSING:` diagnostic the side-car *can* fix mechanically. The goal: make the project **structurally correct** — every link previews, every required asset exists, every package.json field is non-empty — using the side-car as the source of truth. The user can re-run the audit later and only the business copy will need tuning; the scaffolding is already in place.
+
+**Principle: technical completeness, then business polish.** Auto-fill is for stuff a machine can decide. Business copy (the actual wording of `description`, `tagline`, `intro`) goes through human review via the side-car. Auto-fill *uses* the side-car's wording — it does not invent new wording.
+
+### What auto-fill resolves (each gated by "only if missing")
+
+| Diagnostic the side-car flagged | Auto-fill action | Source of truth |
+|---|---|---|
+| `MISSING: no og-banner.png` | Write SVG source to `frontend/public/og-banner.svg`, then render to `frontend/public/og-banner.png` (1200×630) via `rsvg-convert`. Both files commit — SVG is the editable source. | `readme.title` + `readme.tagline` + manifest theme_color |
+| `MISSING: no logo / favicon` | If neither `favicon.svg`, `logo.svg`, nor `logo.png` exists in `frontend/public/` (or project root for non-frontend projects), write a placeholder `logo.svg`: rounded square in manifest theme_color, white project initials (first 2 letters of `readme.title`), 256×256 viewBox. Use until a real logo is designed. | `readme.title` initials + manifest theme_color |
+| `MISSING: no <meta og:*> / twitter:*` in `index.html` | Inject the full og:/twitter: block from the side-car into `<head>` after the existing `<meta name="description">` | `html.og.*` + `html.twitter.*` |
+| `MISSING: no README.md at project root` | Write a real root README: H1, italic tagline, intro paragraph, `## Documentation` pointer to `docs/`, auto-gen marker at bottom | `readme.title` + `readme.tagline` + `readme.intro` |
+| `MISSING: no LICENSE file` | Drop `UNLICENSED\n\nAll rights reserved.\n` — the conservative default for private projects. Never guess MIT/Apache. | side-car `package.license` |
+| `MISSING: no description in <pkg>` | Set `description` in that package.json to side-car `package.description` | `package.description` |
+| `MISSING: no <field> in <pkg>` (license, author, repository, homepage) | Backfill each from side-car `package.*` | `package.*` |
+
+### What auto-fill does NOT touch
+
+- **`package.name`** — renaming has downstream consequences (CI, systemd, Docker tags, npm consumers). Leave the `STALE:` diagnostic in place; manual review.
+- **Existing `description` text** that's just *stale* (not missing). Auto-fill won't rephrase prose; that's business-copy territory.
+- **`<meta name="description">`** if it already exists, even when stale. Same reason.
+- **Real `LICENSE` file** if one exists, even if `package.license` field is empty — backfill the field from the file, not the other way around.
+- **Real `README.md`** if one exists. The side-car's `readme` block is for the *missing* case only.
+- **`og:image`** if one already exists in `index.html`, even if the file behind it 404s. Flag the 404 as a separate diagnostic.
+
+### Placeholder og-banner — implementation (SVG source + PNG render)
+
+Always write **both** files. The SVG is the editable source; the PNG is what Facebook/Twitter/Slack scrape (they don't fetch SVG). The SVG also doubles as a re-render target — change the text, re-run `rsvg-convert`, ship.
+
+Build the SVG with a gradient background (manifest theme_color → 30% darker for depth), the project title, tagline, homepage URL, and a "PLACEHOLDER" footer watermark:
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="<THEME_COLOR>"/>
+      <stop offset="100%" stop-color="<THEME_COLOR_DARK_30>"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <text x="80" y="290" font-family="system-ui, -apple-system, sans-serif"
+        font-size="140" font-weight="800" fill="#ffffff" letter-spacing="-3"><TITLE></text>
+  <text x="80" y="370" font-family="system-ui, -apple-system, sans-serif"
+        font-size="38" font-weight="500" fill="#ffffff" opacity="0.92"><TAGLINE></text>
+  <text x="80" y="425" font-family="system-ui, -apple-system, sans-serif"
+        font-size="28" font-weight="400" fill="#ffffff" opacity="0.7"><HOMEPAGE_DOMAIN></text>
+  <text x="80" y="585" font-family="system-ui, -apple-system, sans-serif"
+        font-size="18" font-weight="500" fill="#ffffff" opacity="0.5">PLACEHOLDER — replace before public launch</text>
+</svg>
+```
+
+Save the SVG at `frontend/public/og-banner.svg` and render the PNG:
+
+```bash
+rsvg-convert -w 1200 -h 630 -f png \
+  -o frontend/public/og-banner.png frontend/public/og-banner.svg
+```
+
+Verify the PNG (`stat -c%s` ≥ 5000 bytes). If `rsvg-convert` is missing, ship the SVG only and convert the diagnostic from `MISSING:` to `WARN: rsvg-convert not installed — SVG written, PNG not rendered. Install librsvg2-bin to fix.`
+
+### Placeholder logo.svg — implementation
+
+Only write if no logo exists (`favicon.svg`, `logo.svg`, `logo.png` all missing in `frontend/public/` or project root). A real logo always beats a placeholder, so don't overwrite.
+
+The placeholder is a rounded square with the project's initials. Take the first 1–2 capital letters from `readme.title` (e.g. `"CartFlow"` → `"C"`, `"MenuKit CMS"` → `"MK"`):
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" rx="48" fill="<THEME_COLOR>"/>
+  <text x="128" y="128" font-family="system-ui, -apple-system, sans-serif"
+        font-size="140" font-weight="800" fill="#ffffff"
+        text-anchor="middle" dominant-baseline="central"
+        letter-spacing="-4"><INITIALS></text>
+  <!-- PLACEHOLDER — replace with real logo. -->
+</svg>
+```
+
+Save to `frontend/public/logo.svg` (or project root for non-frontend projects). Do **not** rasterize to PNG by default — the SVG renders natively in `<img>` and is sharper at every size. If the PWA manifest needs PNG icons too, defer to the `pwa-setup` skill rather than duplicating that pipeline here.
+
+The SVG-only output is intentional: most modern places that consume a "logo" (favicon, hero image, README badge, GitHub social preview) accept SVG. Until the user designs a real one, the initials-on-theme-color square is a clean, professional-looking stand-in.
+
+### og:/twitter: meta-tag injection — implementation
+
+Find the existing `<meta name="description" ...>` line in `index.html` and inject the og:/twitter: block immediately after it. Order conventionally: og:title → og:description → og:type → og:url → og:site_name → og:image → og:image:width → og:image:height → twitter:card → twitter:title → twitter:description → twitter:image.
+
+Wrap with HTML comment markers so a re-run can detect and replace the block instead of duplicating:
+
+```html
+<!-- BEGIN project-metadata-refiner: og:/twitter: -->
+<meta property="og:title" content="..." />
+...
+<!-- END project-metadata-refiner -->
+```
+
+### Root README.md — implementation
+
+Write a real markdown file. The format is opinionated and consistent across projects so portfolio scrapers (Mission Control, GitHub) get something usable:
+
+```markdown
+# <readme.title>
+
+*<readme.tagline>*
+
+<readme.intro>
+
+## Documentation
+
+See [`docs/`](./docs/) for full architecture, feature guides, deployment, and release notes.
+
+---
+
+<sub>This README was scaffolded by `project-metadata-refiner` on <ISO date>. Edit freely — the auto-fill marker can be deleted once you've reviewed it.</sub>
+```
+
+### Idempotency
+
+Every auto-fill step must:
+- **Check before writing** — if the target file or field already has a non-empty value, skip and leave the diagnostic.
+- **Mark its own output** — HTML comment markers, README footer line, or a `// AUTO-FILLED by project-metadata-refiner` comment in JSON (where format allows).
+- **Update the side-car diagnostics** — demote `MISSING:` to `RESOLVED:` so a re-run sees what's done.
+
+A second invocation of the skill against the same project should produce zero new file writes and the same side-car (modulo `$generatedAt`).
+
+### After auto-fill — what's left for the human
+
+The user re-reads the side-car. The remaining diagnostics are now exclusively:
+- `STALE:` — wording that exists but is wrong. Needs human judgment.
+- `INCONSISTENT:` — usually points at a brand drift; the user decides the canonical spelling.
+- `RECOMMEND:` — judgment calls (renaming packages, adding a root package.json).
+- `BREAKING:` — needs an impact review before applying.
+- `TODO:` — purely creative tasks (replace placeholder og-banner with a real designed one).
+
+Most projects go from ~15 diagnostics → ~5 after auto-fill. The remaining five are exactly where human attention is worth spending.
 
 ---
 
