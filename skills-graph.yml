@@ -29,6 +29,7 @@ categories:
   ui:         "Frontend UX patterns"
   audit:      "Code review tooling — can run anytime"
   ops:        "Deployment + operations"
+  planning:   "Project planning + analysis — non-code insights"
 
 skills:
 
@@ -164,6 +165,13 @@ skills:
     level: null
     depends_on: []
     description_short: "Infers a new skill's correct skills-graph.yml entry (type / category / level / depends_on)"
+
+  project-technical-analyzer:
+    type: audit
+    category: planning
+    level: null
+    depends_on: []
+    description_short: "Business PRD -> prds/technical-prd.md + .project-technical-prd.json infra checklist"
 
   # When adding a new skill, append it here AND update README.md's table.
   # `scripts/lint-skills-graph.py` (run by .github/workflows/lint-skills-graph.yml
