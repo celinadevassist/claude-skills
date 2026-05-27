@@ -468,6 +468,24 @@ Every prompt ends with `"Composition leaves the left half OPEN and DARKER for te
 
 **Failure handling.** If `OPENAI_API_KEY` is set but the API call fails (rate limit, outage, invalid model, payment issue), the refiner FALLS BACK to pure-SVG mode automatically and adds a `WARN:` diagnostic. The user can re-run with the same key once the API issue resolves; the diagnostic resolves on re-run.
 
+### Gotcha — workbox 2 MiB precache limit (PWA projects only)
+
+`gpt-image-1` typically returns 1.7-2.5 MB PNGs at `quality: high`. Vite-plugin-pwa's workbox default refuses to precache any single file > 2 MiB and **fails the build** if a globbed asset exceeds it. Most AI bg PNGs land between 1.7 and 2.4 MiB — about half will trip this.
+
+For every PWA project using AI-bg mode, add `globIgnores` to the workbox config in `vite.config.ts` (or `.js`):
+
+```ts
+workbox: {
+  globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+  globIgnores: ['**/og-banner-bg.png'],  // AI-bg source, build-time only
+  // ...rest
+}
+```
+
+The bg PNG is the COMPOSITE INPUT only — never fetched at runtime, never useful offline. The composite output (`og-banner.png`) is what chat-app crawlers fetch and is well under 2 MiB.
+
+If `pwa-setup` is also applied to the project, this `globIgnores` line should land in the same vite.config edit. The refiner adds it idempotently if missing when AI-bg mode runs.
+
 ### Placeholder logo.svg — implementation
 
 Only write if no logo exists (`favicon.svg`, `logo.svg`, `logo.png` all missing in `frontend/public/` or project root). A real logo always beats a placeholder, so don't overwrite.
