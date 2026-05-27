@@ -42,6 +42,7 @@ The skill writes exactly one file: `<project-root>/.project-meta.json`. Schema:
   "$generatedBy": "project-metadata-refiner",
   "$generatedAt": "2026-05-12T14:30:00.000Z",
   "$version": 1,
+  "$ogBannerVersion": 2,  // cache-bust counter for og:image?v=N — bump on every banner re-render
 
   "$sources": {
     "packageJsonPath": "/abs/path/package.json",
@@ -215,7 +216,7 @@ After the side-car is written, run an idempotent pass that resolves every `MISSI
 
 | Diagnostic the side-car flagged | Auto-fill action | Source of truth |
 |---|---|---|
-| `MISSING: no og-banner.png` | Write SVG source to `frontend/public/og-banner.svg`, then render to `frontend/public/og-banner.png` (1200×630) via `rsvg-convert`. Both files commit — SVG is the editable source. | `readme.title` + `readme.tagline` + manifest theme_color |
+| `MISSING: no og-banner.png` | Write SVG source to `frontend/public/og-banner.svg` using the **rich template** (icon + wordmark + tagline pill + domain-appropriate right-column preview card — see "Rich og-banner" section below). Render to `frontend/public/og-banner.png` (1200×630) via `rsvg-convert`. Bump `$ogBannerVersion` in the side-car and update `og:image` / `twitter:image` URLs to include `?v=N`. Both files commit — SVG is the editable source. | `readme.title` + `readme.tagline` + manifest theme_color + `$findings.inferredPurpose` (for the right-column preview content) |
 | `MISSING: no logo / favicon` | If neither `favicon.svg`, `logo.svg`, nor `logo.png` exists in `frontend/public/` (or project root for non-frontend projects), write a placeholder `logo.svg`: rounded square in manifest theme_color, white project initials (first 2 letters of `readme.title`), 256×256 viewBox. Use until a real logo is designed. | `readme.title` initials + manifest theme_color |
 | `MISSING: no <meta og:*> / twitter:*` in `index.html` | Inject the full og:/twitter: block from the side-car into `<head>` after the existing `<meta name="description">` | `html.og.*` + `html.twitter.*` |
 | `MISSING: no README.md at project root` | Write a real root README: H1, italic tagline, intro paragraph, `## Documentation` pointer to `docs/`, auto-gen marker at bottom | `readme.title` + `readme.tagline` + `readme.intro` |
@@ -232,29 +233,123 @@ After the side-car is written, run an idempotent pass that resolves every `MISSI
 - **Real `README.md`** if one exists. The side-car's `readme` block is for the *missing* case only.
 - **`og:image`** if one already exists in `index.html`, even if the file behind it 404s. Flag the 404 as a separate diagnostic.
 
-### Placeholder og-banner — implementation (SVG source + PNG render)
+### Rich og-banner — implementation (SVG source + PNG render)  [v2]
 
-Always write **both** files. The SVG is the editable source; the PNG is what Facebook/Twitter/Slack scrape (they don't fetch SVG). The SVG also doubles as a re-render target — change the text, re-run `rsvg-convert`, ship.
+Always write **both** files. The SVG is the editable source; the PNG is what Facebook/Twitter/Slack/WhatsApp scrape (they don't fetch SVG). The SVG also doubles as a re-render target — change the text, re-run `rsvg-convert`, ship.
 
-Build the SVG with a gradient background (manifest theme_color → 30% darker for depth), the project title, tagline, homepage URL, and a "PLACEHOLDER" footer watermark:
+**Why rich, not flat.** Chat-app preview heuristics (WhatsApp, Telegram, iMessage) downgrade flat-text-on-gradient banners to a SMALL left-thumbnail card and reserve the big post-style preview for banners with visual richness (icon + data preview + structured layout). A gradient + wordmark + tagline gets you the small thumbnail. Adding a brand-icon + tagline-pill + right-column data-preview-card flips it to the rich preview every time. This is non-negotiable — banners shipped without a right-column preview will keep getting downgraded.
+
+The template below is the canonical layout. The right column ("preview card") is **domain-appropriate** — pick what to render based on the project's purpose:
+
+| Project type | Preview card shows |
+|---|---|
+| Finance / expense | Expense rows with multi-currency amounts + USD total |
+| CMS / menu / e-commerce | Items with prices + total |
+| Knowledge / notes / wiki | Card stack with note titles + tags |
+| Dashboard / admin / portfolio | Stat cards with numbers + sparkline bar |
+| Task tracker / kanban | Task rows with status pills + count |
+| Chat / messaging | Message bubbles with sender names |
+| Analytics | KPI tiles with deltas |
+| Generic / unknown | Feature list with check icons |
+
+Pick the closest match; invent specific row contents that match the project's actual domain vocabulary (read `$findings.inferredPurpose` and the project's controllers/routes for hints). Do NOT use lorem-ipsum.
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="<THEME_COLOR>"/>
-      <stop offset="100%" stop-color="<THEME_COLOR_DARK_30>"/>
+      <stop offset="100%" stop-color="<THEME_COLOR_DARK_40>"/>
     </linearGradient>
+    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="100%" stop-color="#f3f6fa" stop-opacity="0.96"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+      <feOffset dx="0" dy="10" result="off"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.45"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
+
+  <!-- Background gradient -->
   <rect width="1200" height="630" fill="url(#bg)"/>
-  <text x="80" y="290" font-family="system-ui, -apple-system, sans-serif"
-        font-size="140" font-weight="800" fill="#ffffff" letter-spacing="-3"><TITLE></text>
-  <text x="80" y="370" font-family="system-ui, -apple-system, sans-serif"
-        font-size="38" font-weight="500" fill="#ffffff" opacity="0.92"><TAGLINE></text>
-  <text x="80" y="425" font-family="system-ui, -apple-system, sans-serif"
-        font-size="28" font-weight="400" fill="#ffffff" opacity="0.7"><HOMEPAGE_DOMAIN></text>
-  <text x="80" y="585" font-family="system-ui, -apple-system, sans-serif"
-        font-size="18" font-weight="500" fill="#ffffff" opacity="0.5">PLACEHOLDER — replace before public launch</text>
+
+  <!-- Subtle dot grid (texture — prevents flat appearance) -->
+  <g fill="#ffffff" opacity="0.06">
+    <circle cx="140" cy="80"  r="3"/><circle cx="240" cy="130" r="2"/>
+    <circle cx="80"  cy="220" r="4"/><circle cx="340" cy="60"  r="2"/>
+    <circle cx="180" cy="500" r="3"/><circle cx="40"  cy="450" r="2"/>
+    <circle cx="290" cy="580" r="3"/><circle cx="650" cy="50"  r="2"/>
+    <circle cx="1130" cy="560" r="3"/><circle cx="1150" cy="60" r="2"/>
+    <circle cx="980" cy="20" r="2"/><circle cx="1060" cy="600" r="3"/>
+  </g>
+
+  <!-- ============== LEFT COLUMN ============== -->
+
+  <!-- App icon: rounded square with a single glyph picked per domain
+       ($ for finance, M for menu, ✓ for tasks, ★ for ratings, etc.) -->
+  <rect x="80" y="120" rx="22" ry="22" width="100" height="100" fill="#ffffff"/>
+  <text x="130" y="200" font-family="system-ui,-apple-system,sans-serif"
+        font-size="68" font-weight="800" fill="<THEME_COLOR>"
+        text-anchor="middle"><BRAND_GLYPH></text>
+
+  <!-- Wordmark — split across two lines if > ~12 chars total. Verbatim
+       project name from readme.title; do NOT abbreviate. -->
+  <text x="80" y="320" font-family="system-ui,-apple-system,sans-serif"
+        font-size="82" font-weight="800" fill="#ffffff" letter-spacing="-2"><TITLE_LINE_1></text>
+  <text x="80" y="404" font-family="system-ui,-apple-system,sans-serif"
+        font-size="82" font-weight="800" fill="#ffffff" letter-spacing="-2"><TITLE_LINE_2></text>
+
+  <!-- Tagline pill — keep SHORT (≤ 40 chars) so it doesn't run under
+       the right-column card at x=720. Distill readme.tagline. -->
+  <rect x="80" y="438" width="560" height="48" rx="24" ry="24"
+        fill="#ffffff" opacity="0.14"/>
+  <text x="106" y="470" font-family="system-ui,-apple-system,sans-serif"
+        font-size="22" font-weight="600" fill="#ffffff" opacity="0.95"><TAGLINE_SHORT></text>
+
+  <!-- Domain line -->
+  <text x="80" y="570" font-family="system-ui,-apple-system,sans-serif"
+        font-size="22" font-weight="500" fill="#ffffff" opacity="0.6"><HOMEPAGE_DOMAIN></text>
+
+  <!-- ============== RIGHT COLUMN: domain-appropriate preview card ============== -->
+  <!-- Renders at x=720, width=400, height=450. Adapt the contents per
+       project type — see table above. The 4-row + footer-total layout is
+       reusable across nearly every domain; just swap the labels + values. -->
+
+  <g transform="translate(720, 100)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="400" height="450" rx="40" ry="40" fill="url(#cardBg)"/>
+
+    <!-- Header row -->
+    <text x="42" y="56" font-family="system-ui,-apple-system,sans-serif"
+          font-size="18" font-weight="700" fill="<THEME_COLOR_DARK_40>"><CARD_TITLE></text>
+    <text x="358" y="56" font-family="system-ui,-apple-system,sans-serif"
+          font-size="13" font-weight="500" fill="#7a8a99" text-anchor="end"><CARD_SUBTITLE></text>
+    <line x1="42" y1="78" x2="358" y2="78" stroke="#e0e6ec" stroke-width="1"/>
+
+    <!-- 4 data rows (icon-chip + primary + secondary + right-aligned value).
+         y values: 116, 168, 220, 272 -->
+    <g font-family="system-ui,-apple-system,sans-serif">
+      <!-- Row 1 -->
+      <circle cx="60" cy="116" r="15" fill="#dbeafe"/>
+      <text x="60" y="121" font-size="14" font-weight="700" fill="<THEME_COLOR>" text-anchor="middle"><ROW1_GLYPH></text>
+      <text x="88" y="112" font-size="14" font-weight="600" fill="<THEME_COLOR_DARK_40>"><ROW1_PRIMARY></text>
+      <text x="88" y="130" font-size="11" fill="#7a8a99"><ROW1_SECONDARY></text>
+      <text x="358" y="118" font-size="15" font-weight="700" fill="<THEME_COLOR_DARK_40>" text-anchor="end"><ROW1_VALUE></text>
+      <!-- Rows 2-4 follow the same pattern with y=168/220/272 and
+           varying chip colors (#fef3c7 amber, #dcfce7 mint, #fce7f3 pink) -->
+    </g>
+
+    <!-- Footer: aggregate label + value + progress bar -->
+    <line x1="42" y1="324" x2="358" y2="324" stroke="#e0e6ec" stroke-width="1"/>
+    <text x="42" y="358" font-size="13" font-weight="500" fill="#7a8a99"><FOOTER_LABEL></text>
+    <text x="358" y="358" font-size="22" font-weight="800" fill="<THEME_COLOR>" text-anchor="end"><FOOTER_VALUE></text>
+
+    <text x="42" y="390" font-size="11" font-weight="500" fill="#7a8a99"><PROGRESS_LABEL></text>
+    <rect x="42" y="402" width="316" height="8" rx="4" ry="4" fill="#e0e6ec"/>
+    <rect x="42" y="402" width="<PROGRESS_FILL_WIDTH>" height="8" rx="4" ry="4" fill="<THEME_COLOR>"/>
+  </g>
 </svg>
 ```
 
@@ -265,7 +360,27 @@ rsvg-convert -w 1200 -h 630 -f png \
   -o frontend/public/og-banner.png frontend/public/og-banner.svg
 ```
 
-Verify the PNG (`stat -c%s` ≥ 5000 bytes). If `rsvg-convert` is missing, ship the SVG only and convert the diagnostic from `MISSING:` to `WARN: rsvg-convert not installed — SVG written, PNG not rendered. Install librsvg2-bin to fix.`
+Verify the PNG (`stat -c%s` ≥ 50000 bytes — rich banners typically render 80-120 KB). If under 50 KB, the right-column preview likely failed to render — recheck the SVG. If `rsvg-convert` is missing, ship the SVG only and convert the diagnostic from `MISSING:` to `WARN: rsvg-convert not installed — SVG written, PNG not rendered. Install librsvg2-bin to fix.`
+
+### Cache-bust versioning (CRITICAL — applies to every og:image / twitter:image URL)
+
+Chat-app crawlers (WhatsApp, Telegram, iMessage, Slack, Discord, Facebook) cache `og:image` scrapes **aggressively**, keyed on the FULL URL including query string. A new banner at the same URL will NOT show up in previously-cached chats — those keep displaying the old image (often the small-thumbnail downgrade from a flat-text era) forever.
+
+The fix is mandatory: every `og:image` and `twitter:image` URL **must** carry a `?v=N` query parameter. On every re-render of `og-banner.png`, INCREMENT N.
+
+The refiner persists this counter in the side-car field `$ogBannerVersion: N` (sibling of `$version`, at the top level of `.project-meta.json`). Behavior:
+
+- **First write** of og-banner: `$ogBannerVersion: 1` → URLs end `?v=1`
+- **Re-render** (tagline edit, brand color change, new layout): bump to `?v=2`, `?v=3`, …
+- The refiner reads the old `$ogBannerVersion`, increments by 1
+- The side-car's `html.og.image` and `html.twitter.image` always include the current `?v=N`
+- When the refiner re-runs the og:/twitter: injection step, it overwrites the old `?v=N` with the new one inside `index.html` — chat-app crawlers see a "new URL" and re-fetch
+
+**Edge case — `$ogBannerVersion` missing from a prior side-car:** start at `?v=2` (NOT `?v=1`) to deliberately invalidate any previously-cached unversioned scrape. Most legacy projects fall here.
+
+**Edge case — banner content didn't change but a re-run still happens:** still bump the version. The cost of an unnecessary re-fetch is zero; the cost of a stale cached preview is real.
+
+The file `og-banner.png` itself stays at the same path — the bump lives only in the URL inside `index.html`. No need to rename the file on disk.
 
 ### Placeholder logo.svg — implementation
 
@@ -297,9 +412,15 @@ Wrap with HTML comment markers so a re-run can detect and replace the block inst
 ```html
 <!-- BEGIN project-metadata-refiner: og:/twitter: -->
 <meta property="og:title" content="..." />
+<meta property="og:image" content="https://example.com/og-banner.png?v=2" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 ...
+<meta name="twitter:image" content="https://example.com/og-banner.png?v=2" />
 <!-- END project-metadata-refiner -->
 ```
+
+**`?v=N` is mandatory** — read the current `$ogBannerVersion` from the side-car (default to 2 if missing — see Cache-bust versioning section above), and append the same `?v=N` to BOTH `og:image` and `twitter:image`. When the refiner re-runs and the version was bumped, overwriting the block here is what propagates the new URL to chat-app crawlers.
 
 ### Root README.md — implementation
 
@@ -418,7 +539,9 @@ These are the standards every suggested value must meet. If you can't meet the r
 
 - Absolute URL (not `/og.png` — relative paths break when shared).
 - 1200×630 PNG or JPG, ≤ 5 MB (per Facebook spec).
-- If the project doesn't have one yet, suggest `https://<homepage>/og-banner.png` and add diagnostic `"TODO: create og-banner.png — 1200x630, branded"`.
+- **Always include `?v=N` cache-bust** (where N is `$ogBannerVersion` from the side-car). Chat-app crawlers cache aggressively by URL — without the version query, a redesigned banner stays invisible in previously-shared chats forever.
+- If the project doesn't have one yet, suggest `https://<homepage>/og-banner.png?v=1` and add diagnostic `"TODO: create og-banner.png — 1200x630, rich layout (icon + wordmark + tagline pill + right-column preview card per the v2 template)"`.
+- Generated banners follow the **rich layout** template (Rich og-banner section). Flat-text-on-gradient banners get downgraded to small-thumbnail previews by WhatsApp/Telegram/iMessage — never ship those.
 
 ### `html.og.type`
 

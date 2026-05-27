@@ -177,6 +177,7 @@ skills:
     category: audit
     level: null
     depends_on: []
+    version: 2
     description_short: "Audits package.json / README / og: tags / git history; emits .project-meta.json side-car"
 
   project-skill-advisor:
