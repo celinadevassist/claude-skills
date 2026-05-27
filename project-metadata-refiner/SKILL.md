@@ -42,7 +42,8 @@ The skill writes exactly one file: `<project-root>/.project-meta.json`. Schema:
   "$generatedBy": "project-metadata-refiner",
   "$generatedAt": "2026-05-12T14:30:00.000Z",
   "$version": 1,
-  "$ogBannerVersion": 2,  // cache-bust counter for og:image?v=N — bump on every banner re-render
+  "$ogBannerVersion": 2,    // cache-bust counter for og:image?v=N — bump on every banner re-render
+  "$ogBannerMode": "ai-bg", // "pure-svg" (default) | "ai-bg" (opt-in via OPENAI_API_KEY)
 
   "$sources": {
     "packageJsonPath": "/abs/path/package.json",
@@ -381,6 +382,91 @@ The refiner persists this counter in the side-car field `$ogBannerVersion: N` (s
 **Edge case — banner content didn't change but a re-run still happens:** still bump the version. The cost of an unnecessary re-fetch is zero; the cost of a stale cached preview is real.
 
 The file `og-banner.png` itself stays at the same path — the bump lives only in the URL inside `index.html`. No need to rename the file on disk.
+
+### AI-bg mode (optional, opt-in via `OPENAI_API_KEY`)  [v3]
+
+The pure-SVG rich template is reliable, free, and offline-buildable. It's the default. But hand-drawn schematic mockups have a "computer art" feel — when the project budget allows ~$0.04 per project for AI image generation, the banner can go from "schematic but rich" to "magazine-cover striking".
+
+This skill ships an **optional two-layer mode**: AI generates the BACKGROUND, SVG overlays the text. Two layers because image models reliably misspell text and can't pixel-match brand colors — keeping text in SVG gives you both visual richness AND legibility/brand-precision.
+
+**Activation:** if `OPENAI_API_KEY` is set in the environment when the refiner runs, AI-bg mode kicks in. If absent, fall back to pure-SVG (current default behavior — no regression).
+
+**What changes:**
+
+1. **Background generation** — the refiner calls `scripts/generate-og-bg.py` (ships with this repo, stdlib-only Python) with the project's `theme_color`, `inferredPurpose`, and one of 7 category-keyed prompt templates (finance / dashboard / ecommerce / knowledge / cms / tasks / generic). The script POSTs to OpenAI's Images API (`gpt-image-1` by default; `dall-e-3` via `OG_AI_IMAGE_MODEL=dall-e-3`), downloads the resulting PNG to `frontend/public/og-banner-bg.png` (~2 MB, 1536×1024). Takes ~40 s.
+
+2. **Composite SVG** — `og-banner.svg` uses `<image href="og-banner-bg.png" preserveAspectRatio="xMidYMid slice">` for the background (center-crops the 1536×1024 source to the 1200×630 canvas with no distortion). A left-side dark `<linearGradient>` scrim ensures the text overlay is legible regardless of what the AI painted on the left. The icon + wordmark + tagline pill + domain line sit on top — same SVG elements as the pure-SVG mode, just on a richer canvas. The right-column data-card is OMITTED in AI-bg mode (the AI usually paints its own visual content there).
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="scrim" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#0b0d2e" stop-opacity="0.85"/>
+      <stop offset="50%"  stop-color="#0b0d2e" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#0b0d2e" stop-opacity="0.00"/>
+    </linearGradient>
+  </defs>
+
+  <image href="og-banner-bg.png" xlink:href="og-banner-bg.png"
+         x="0" y="0" width="1200" height="630"
+         preserveAspectRatio="xMidYMid slice"/>
+
+  <rect width="1200" height="630" fill="url(#scrim)"/>
+
+  <!-- icon, wordmark, tagline pill, domain — same elements as pure-SVG mode -->
+  <rect x="80" y="120" rx="22" ry="22" width="100" height="100" fill="#ffffff"/>
+  <text x="130" y="200" font-size="68" font-weight="800" fill="<THEME_COLOR>"
+        font-family="system-ui,-apple-system,sans-serif" text-anchor="middle"><BRAND_GLYPH></text>
+
+  <text x="80" y="320" font-size="82" font-weight="800" fill="#ffffff"
+        font-family="system-ui,-apple-system,sans-serif" letter-spacing="-2"><TITLE_LINE_1></text>
+  <text x="80" y="404" font-size="82" font-weight="800" fill="#ffffff"
+        font-family="system-ui,-apple-system,sans-serif" letter-spacing="-2"><TITLE_LINE_2></text>
+
+  <rect x="80" y="438" width="560" height="48" rx="24" ry="24" fill="#ffffff" opacity="0.18"/>
+  <text x="106" y="470" font-size="22" font-weight="600" fill="#ffffff"
+        font-family="system-ui,-apple-system,sans-serif"><TAGLINE_SHORT></text>
+
+  <text x="80" y="570" font-size="22" font-weight="500" fill="#ffffff" opacity="0.7"
+        font-family="system-ui,-apple-system,sans-serif"><HOMEPAGE_DOMAIN></text>
+</svg>
+```
+
+3. **Render** as before: `rsvg-convert -w 1200 -h 630 -f png -o og-banner.png og-banner.svg`.
+
+4. **Side-car** stamps `$ogBannerMode: "ai-bg"` (vs. `"pure-svg"` for the default). The advisor's `nextActions[]` for project-metadata-refiner gains one line: `Manual: review og-banner.png — AI-generated, re-roll prompt if quality is off`.
+
+**Commit policy.** Commit BOTH files to the project repo:
+- `frontend/public/og-banner-bg.png` (2 MB AI source — committed so the build is reproducible without re-paying the API call on every CI build)
+- `frontend/public/og-banner.png` (final composite — what chat-app crawlers fetch)
+
+Trade-off accepted: +2 MB per project repo, saved $0.04 per CI build × N builds/year + immunity to API outages.
+
+**Re-generation cadence.** Re-run the AI generation only when:
+- The project's domain/purpose changes meaningfully (`$findings.inferredPurpose` drifts)
+- The brand color changes
+- The user explicitly wants to re-roll for aesthetic reasons
+
+Don't auto-regenerate on every refiner re-run — that's $0.04 per audit pass × N audits, with no observable improvement.
+
+**Prompt library** (in `scripts/generate-og-bg.py`):
+
+| Category | Visual metaphor |
+|---|---|
+| `finance` | Floating receipts, coin discs, currency symbol shapes in negative space |
+| `dashboard` | Floating UI cards, soft progress arcs, light grid lines, gentle data flow lines |
+| `ecommerce` | Floating storefront cards, shopping bag silhouettes, soft tag shapes |
+| `knowledge` | Floating index cards in a soft stack, gentle connection lines, glowing nodes |
+| `cms` | Stacked document silhouettes, soft layout grids, gentle layering |
+| `tasks` | Floating checklist cards, soft progress indicators, gentle priority swatches |
+| `generic` | Floating geometric shapes, soft layered cards, gentle data flow lines, subtle dots |
+
+Every prompt ends with `"Composition leaves the left half OPEN and DARKER for text overlay"` so the scrim has clear real estate.
+
+**Model selection.** `gpt-image-1` is the default (faster, returns b64 inline — no second-hop download). `dall-e-3` is supported as a fallback via `OG_AI_IMAGE_MODEL=dall-e-3` env var (returns URL, slightly older training but sometimes more "design-y").
+
+**Failure handling.** If `OPENAI_API_KEY` is set but the API call fails (rate limit, outage, invalid model, payment issue), the refiner FALLS BACK to pure-SVG mode automatically and adds a `WARN:` diagnostic. The user can re-run with the same key once the API issue resolves; the diagnostic resolves on re-run.
 
 ### Placeholder logo.svg — implementation
 
