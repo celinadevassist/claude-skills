@@ -1,6 +1,6 @@
 ---
 name: hetzner-monolith-deploy
-description: End-to-end production deploy of a NestJS + React + Postgres + Prisma monolith to a single Hetzner ARM server, with Caddy auto-HTTPS, push-to-deploy via GitHub Actions multi-arch builds + Watchtower, Prisma migrations on container start, nightly backups to local disk + Backblaze B2, and SMTP via MXroute. Use when standing up a new project from the same blueprint as Follow-Up Expenses; complements monolith-setup (app shape), pwa-setup (PWA), and deployment-setup (Portainer alternative).
+description: End-to-end production deploy of a NestJS + React + Postgres + Prisma monolith to a single Hetzner ARM server, with Caddy auto-HTTPS, push-to-deploy via GitHub Actions multi-arch builds + Watchtower, Prisma migrations on container start, nightly backups to local disk + Backblaze B2, and SMTP via MXroute. Use when standing up a new project from the same blueprint as Follow-Up Expenses; complements monolith-setup (app shape), pwa-setup (PWA), and deployment-setup (sibling deploy skill — pick that one when targeting an existing Portainer + NPM host instead of a new dedicated server).
 ---
 
 # Hetzner Monolith Deploy
@@ -624,7 +624,7 @@ ssh deploy@$IP "/opt/expenses/backup.sh && tail -5 /opt/expenses/backups/backup.
 ## Companion skills
 
 - **`monolith-setup`** — the app architecture (NestJS serving the SPA from `public/` via `ServeStaticModule`). Run that first to scaffold; this skill deploys what it produces.
-- **`deployment-setup`** — older Portainer-based deploy pattern. Use this skill instead unless the team standardises on Portainer.
+- **`deployment-setup`** — sibling deploy skill for when the target host is an **existing** Portainer + Nginx-Proxy-Manager server. Pick that one when adding a project onto a shared box; pick **this** one when standing up a fresh dedicated Hetzner/DO server.
 - **`pwa-setup`** — manifest + service worker + install prompts. Independent of this skill.
 - **`jwt-auth-admin-seeded`** — JWT cookie auth + initial admin seeding. Independent.
 - **`nestjs-throttle`** — global rate-limit guard. Independent.
