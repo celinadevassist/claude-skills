@@ -625,6 +625,7 @@ ssh deploy@$IP "/opt/expenses/backup.sh && tail -5 /opt/expenses/backups/backup.
 
 - **`monolith-setup`** — the app architecture (NestJS serving the SPA from `public/` via `ServeStaticModule`). Run that first to scaffold; this skill deploys what it produces.
 - **`deployment-setup`** — sibling deploy skill for when the target host is an **existing** Portainer + Nginx-Proxy-Manager server. Pick that one when adding a project onto a shared box; pick **this** one when standing up a fresh dedicated Hetzner/DO server.
+- **`single-host-systemd-deploy`** — sibling deploy skill for when the target host is a **shared Linux box without Docker** (one Caddy, many projects, systemd per app). Pick that one when adding to a multi-project box; pick **this** one when the project gets its own dedicated server.
 - **`pwa-setup`** — manifest + service worker + install prompts. Independent of this skill.
 - **`jwt-auth-admin-seeded`** — JWT cookie auth + initial admin seeding. Independent.
 - **`nestjs-throttle`** — global rate-limit guard. Independent.

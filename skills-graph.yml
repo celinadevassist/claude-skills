@@ -143,6 +143,13 @@ skills:
     depends_on: [monolith-setup]
     description_short: "Stand up a NEW Hetzner/DO single server — Caddy auto-HTTPS, GH Actions multi-arch + Watchtower push-to-deploy, Prisma migrate-on-start, nightly B2 backups, MXroute SMTP (pick deployment-setup instead when the target host already runs Portainer + NPM)"
 
+  single-host-systemd-deploy:
+    type: setup
+    category: ops
+    level: 5
+    depends_on: [monolith-setup]
+    description_short: "Add a project to an EXISTING shared host running Caddy + sibling projects — no Docker, systemd unit (prod + dev) + Caddy reverse-proxy block + sslip.io subdomain + scripts/deploy.sh + actions-ssh CD (the mission-control / ems / cartflow / idea-keep pattern; sibling of deployment-setup and hetzner-monolith-deploy)"
+
   # ---------- Audit skills: can run anytime, no level ordering ----------
 
   bulk-db-audit:
