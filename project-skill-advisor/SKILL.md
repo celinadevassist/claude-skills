@@ -55,7 +55,11 @@ Single file at `<project-root>/.project-skills.json`:
     "existingPatterns": ["JWT httpOnly cookies", "JSON file logging via winston", "Mantine 8 with light theme"],
     "pageCount":        12,
     "controllerCount":  18,
-    "deployStatus":     "deployed at mission-control.46.62.210.62.sslip.io via Caddy + systemd"
+    "deployStatus":     "deployed at mission-control.46.62.210.62.sslip.io via Caddy + systemd",
+    "warnings": [
+      "ORDERING: project-metadata-refiner was applied before pwa-setup; og-banner.png may not use the manifest theme_color",
+      "PREREQ: spotlight-cmdk in recommendations but mantine-theme-discipline is neither applied nor recommended"
+    ]
   },
 
   "recommendations": [
@@ -68,7 +72,11 @@ Single file at `<project-root>/.project-skills.json`:
       "priority": "high",
       "reason": "12 mutation endpoints (POST /users, PATCH /projects, DELETE /audit-rules…) but no `audit_logs` collection or AuditService — every admin action currently flies un-attributed.",
       "estimated_effort": "30 min Claude session",
-      "applyHint": "Adds AuditService (@Global, fire-and-forget) + admin-only /audit page with filters + payload-redaction for secrets."
+      "applyHint": "Adds AuditService (@Global, fire-and-forget) + admin-only /audit page with filters + payload-redaction for secrets.",
+      "nextActions": [
+        "Invoke Skill: audit-log",
+        "Verify after apply: GET /api/audit-logs returns 401 without admin JWT, 200 with"
+      ]
     },
     {
       "skill": "spotlight-cmdk",
@@ -85,7 +93,11 @@ Single file at `<project-root>/.project-skills.json`:
   "alreadyApplied": [
     {
       "skill": "monolith-setup",
-      "evidence": "backend/public/ contains built frontend; ServeStaticModule registered in app.module.ts:42; React Router fallback to index.html in main.ts:67"
+      "evidence": "backend/public/ contains built frontend; ServeStaticModule registered in app.module.ts:42; React Router fallback to index.html in main.ts:67",
+      "nextActions": [
+        "curl -sI http://localhost:3041/ | head -1   # expect 200 + text/html",
+        "curl -sI http://localhost:3041/api/health   # expect 200 + JSON, not HTML"
+      ]
     },
     {
       "skill": "jwt-auth-admin-seeded",
@@ -93,7 +105,16 @@ Single file at `<project-root>/.project-skills.json`:
     },
     {
       "skill": "mantine-theme-discipline",
-      "evidence": "frontend/src/utils/theme.ts uses only theme tokens; grep for hardcoded hex outside theme.ts returned 0 matches"
+      "evidence": "frontend/src/utils/theme.ts uses only theme tokens; grep for hardcoded hex outside theme.ts returned 0 matches",
+      "appliedVersion":      1,
+      "catalogVersion":      2,
+      "outdated":            true,
+      "verified":            true,
+      "verifiedAt":          "2026-05-26T14:22:00.000Z",
+      "verificationOutput":  "lint:colors passed (0 violations)",
+      "nextActions": [
+        "npm run lint:colors   # expect 0 hardcoded hex outside theme.ts"
+      ]
     }
   ],
 
@@ -105,6 +126,17 @@ Single file at `<project-root>/.project-skills.json`:
     {
       "skill": "api-platform",
       "reason": "Pure internal tool with no external integration use-case in the README or commit log. JWT cookie auth is sufficient for the admin UI; API keys would be unused infrastructure."
+    }
+  ],
+
+  "catalogGaps": [
+    {
+      "pattern":              "transactional-email",
+      "evidence":             "nodemailer in backend/package.json; backend/src/email/email.service.ts exports sendMail; backend/src/email/templates/ has 4 .hbs files; EMAIL_HOST + EMAIL_USER in .env.example",
+      "appliesTo":            "ops",
+      "suggestedSkillName":   "transactional-email",
+      "suggestedDescription": "SMTP + templates for transactional email (welcome, password reset, alerts).",
+      "evidenceFiles":        ["backend/package.json", "backend/src/email/email.service.ts", "backend/src/email/templates/"]
     }
   ]
 }
@@ -215,6 +247,116 @@ The most important part of this skill. Each row is the contract: how to detect "
 
 ---
 
+## Catalog Gap Detection
+
+Some projects implement patterns that aren't yet covered by any skill in the catalog. The advisor surfaces these in `catalogGaps[]` — each entry is a candidate for the next skill to extract. Over time, scanning gap frequency across many projects tells you which skill to write next.
+
+The detection logic is the inverse of `alreadyApplied`: find concrete evidence of a pattern (deps, controllers, config files, common-shaped code) AND verify that **no existing catalog skill claims that territory**. If both are true, emit a gap entry.
+
+### Heuristics — common patterns with no catalog skill yet
+
+| Pattern slug | Evidence to look for | Suggested category |
+|---|---|---|
+| `webpush-vapid` | `web-push` in deps; `VAPID_*` env vars; service worker has `push` event listener; `PushSubscription` model/table | auth |
+| `transactional-email` | `nodemailer` / `@sendgrid/mail` / `resend` / `mailgun-js` in deps; `src/email/` or `src/mail/` directory; SMTP env vars | ops |
+| `pg-backup-automation` | `pg_dump` referenced in `scripts/`; `backup*.sh`; cron entries; B2/S3 credentials in env | ops |
+| `multi-user-migration` | Recent migration adds `userId` columns to 3+ tables AND no advisor record of this skill being applied | auth |
+| `csv-bulk-import` | `papaparse` / `fast-csv` / `csv-parse` in deps; controller accepts file upload AND parses CSV AND has dedupe logic | data |
+| `background-jobs` | `bull` / `bullmq` / `agenda` / `node-cron` in deps; `*.processor.ts` files | data |
+| `file-uploads` | `multer` / `@aws-sdk/client-s3` / `cloudinary` in deps; controller uses `FileInterceptor` | data |
+| `pdf-generation` | `pdfkit` / `puppeteer` / `playwright` / `@react-pdf/renderer` in deps; controllers returning `application/pdf` | data |
+| `excel-export` | `exceljs` / `xlsx` in deps | data |
+| `dark-mode-toggle` | `useColorScheme` / `useMantineColorScheme` calls AND `localStorage` persistence AND no catalog skill claims it | ui |
+| `websocket-realtime` | `socket.io` / `ws` / `@nestjs/websockets` in deps; `*.gateway.ts` files | data |
+
+This table is **seed**, not exhaustive. New entries should be added as the catalog matures: every time a skill is harvested from a project (the eventual `skill-extractor` flow), the heuristic that flagged the gap moves out of this table and into "Per-Skill Detection Heuristics".
+
+### Rules for emitting a gap
+
+- **Concrete evidence only.** "Project might want email" is not a gap. "Nodemailer in deps + 4 `.hbs` templates + `EMAIL_HOST` env var" is.
+- **Suppress if a catalog skill already owns the territory.** If `pwa-setup` already mentions web push in passing, do NOT emit `webpush-vapid` as a gap — emit a different diagnostic in `$findings.warnings` (e.g. `"RECOMMEND: extend pwa-setup with VAPID specifics"`).
+- **At least one `evidenceFiles` path that exists on disk.** This is what makes the gap actionable for the eventual `skill-extractor` harvester — it needs files to read when drafting the new SKILL.md.
+- **Suggest a slug, not a polished name.** The slug is a working title; the harvested SKILL.md may pick a better final name.
+- **Cap at ~10 entries per project.** If more than 10 candidates surface, the project is doing too much that's un-catalogued; raise a `WARN` in `$findings.warnings` and keep the top 10 by evidence strength.
+
+### Why catalogGaps matters
+
+The catalog only grows through deliberate extraction. Without this signal, gaps stay invisible: each new project re-invents the same un-catalogued pattern, and the advisor keeps showing empty `recommendations[]` for projects that secretly contain the next 3 skills you should be writing. `catalogGaps` closes that loop — feeding directly into the `skill-extractor` meta-skill once it exists.
+
+---
+
+## Warnings + Next Actions
+
+Two cross-cutting fields turn the side-car from "a snapshot" into "a checklist a human (or Mission Control) can act on".
+
+### `$findings.warnings[]` — ordering & prereq problems
+
+A flat array of single-line strings, each prefixed by a category so the UI can filter and color:
+
+| Prefix | Meaning | Example |
+|---|---|---|
+| `ORDERING:` | Two skills in `alreadyApplied` were applied in an order that violates `depends_on`, or an earlier-level skill was re-applied AFTER a later-level skill (its outputs are now stale) | `ORDERING: project-metadata-refiner was applied before pwa-setup; og-banner.png may not use the manifest theme_color` |
+| `PREREQ:` | A recommendation's `depends_on` includes a skill that is neither in `alreadyApplied` nor higher in `recommendations[]` | `PREREQ: spotlight-cmdk requires mantine-theme-discipline (not applied, not recommended)` |
+| `STALE:` | An applied skill is older than the current catalog version of that skill (deferred — populated once P2 lands `version:` fields) | `STALE: pwa-setup applied at v1; catalog now at v2 (adds shortcuts + share_target)` |
+| `RECOMMEND:` | A judgment call the advisor wants surfaced but doesn't want to express as a hard recommendation | `RECOMMEND: extend pwa-setup with VAPID specifics rather than emitting webpush-vapid as a catalogGap` |
+| `WARN:` | The audit itself ran into a soft failure (catalog file missing, heuristic ambiguous) | `WARN: skill X is in skills-graph.yml but has no SKILL.md; heuristic skipped` |
+
+`warnings` is purely advisory — it never gates application, never moves a skill between buckets. Mission Control surfaces it as a badge on the project tile.
+
+### `nextActions[]` — per-entry actionable steps
+
+Every entry in `recommendations[]` AND `alreadyApplied[]` carries an optional `nextActions[]` array (1–4 short shell-style strings). The contents come from two sources:
+
+- **For `recommendations[]`**: the first action is always `"Invoke Skill: <slug>"`; subsequent actions are the **post-apply verification commands** distilled from that skill's "Verification Checklist" section in its SKILL.md.
+- **For `alreadyApplied[]`**: the actions are the **standing verification commands** the user can re-run anytime to confirm the skill is still healthy (e.g. `curl` a manifest, run a lint script, hit a health endpoint).
+
+This is what turns the side-car from "a record of what the advisor thinks" into "a runbook a fresh operator can execute". Pairs with the future P1 (verification gate): once gates exist, `nextActions[]` becomes the source list that the gate iterates.
+
+#### Rules
+
+- Each action ≤ 100 chars, single line, copy-pasteable into a terminal.
+- Prefer real commands over prose; if prose is unavoidable, prefix with `Manual: ` (e.g. `"Manual: install on a real iPhone via Share → Add to Home Screen"`).
+- Inline comments with `# expected: <output>` are encouraged — they double as smoke-test assertions.
+- Omit `nextActions[]` entirely if there are zero actions worth listing; don't ship an empty array.
+
+---
+
+## Verification & Versioning
+
+Two optional layers on every `alreadyApplied[]` entry turn "this skill is applied" into "this skill is applied, healthy, AND on the current catalog version".
+
+### Versioning — `appliedVersion` + `catalogVersion` + `outdated`
+
+`skills-graph.yml` carries a `version: N` per skill (default `1` if omitted). When a skill's procedure, output schema, or required files change meaningfully, the maintainer bumps the version. The advisor:
+
+1. Reads `version` from each skill's graph entry → that's `catalogVersion`.
+2. Reads `appliedVersion` from the prior `.project-skills.json` if one exists (defaults to `1` for entries without a prior record).
+3. If `appliedVersion < catalogVersion`, sets `outdated: true` on the entry AND emits a `STALE:` line into `$findings.warnings[]`.
+
+Re-applying the skill upgrades `appliedVersion` to `catalogVersion`. Mission Control's UI can list every project with `outdated: true` entries — that's the migration backlog.
+
+The "when to bump" policy is documented at the top of `skills-graph.yml` so the maintainer doesn't have to come here to check.
+
+### Verification — `verified` + `verifiedAt` + `verificationOutput`
+
+Populated by the **apply runner** (Mission Control's drawer, or a future verification gate). The advisor itself NEVER sets these — its job is to define the contract; the runner fills it in.
+
+- `verified: boolean` — did every `nextActions[]` command pass when last executed?
+- `verifiedAt: ISO timestamp` — when the gate last ran.
+- `verificationOutput: string` — short summary line (`"all 2 checks passed"` or `"1 of 3 failed: curl /manifest.json → 404"`).
+
+Three states the UI should distinguish:
+
+| State | Field combination | Meaning |
+|---|---|---|
+| Verified-clean | `verified: true` | Last gate passed; safe |
+| Verified-broken | `verified: false` | Last gate found a regression; the skill IS applied but needs attention (re-apply, debug, or re-run the gate) |
+| Unknown | `verified` field absent | No gate has ever run; treat as "not yet validated", not "broken" |
+
+A `verified: false` entry stays in `alreadyApplied[]` — the skill IS still applied, just no longer healthy. The runner is responsible for surfacing the failure, not the advisor.
+
+---
+
 ## Output Verification
 
 Before writing the side-car, confirm:
@@ -224,6 +366,12 @@ Before writing the side-car, confirm:
 - Every recommendation has a non-empty `reason` (a string with concrete evidence, not "this is generally good").
 - Every entry in `notRecommended` has a non-empty `reason`.
 - No skill appears in more than one of `recommendations` / `alreadyApplied` / `notRecommended`.
+- Every entry in `catalogGaps` has a non-empty `evidence` string AND at least one path in `evidenceFiles` that exists on disk.
+- No `catalogGaps` entry duplicates a slug that already appears in `recommendations` / `alreadyApplied` (gaps are for patterns NOT in the catalog).
+- Every entry in `$findings.warnings[]` starts with one of the allowed prefixes (`ORDERING:` / `PREREQ:` / `STALE:` / `RECOMMEND:` / `WARN:`).
+- Every `nextActions[]` entry is ≤ 100 chars; empty arrays are omitted entirely (don't ship `"nextActions": []`).
+- Every `alreadyApplied[]` entry with `outdated: true` also has a corresponding `STALE:` line in `$findings.warnings[]` (the two are synchronized).
+- `verified` / `verifiedAt` / `verificationOutput` are never set by the advisor — these are runner-owned fields and the advisor must preserve them from a prior side-car, never overwrite or fabricate.
 - JSON parses cleanly (`jq . .project-skills.json`).
 
 ---

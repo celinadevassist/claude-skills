@@ -12,12 +12,25 @@
 #       category:           foundation | auth | data | ui | audit | ops
 #       level:              integer (lower runs first), or null for `audit` skills
 #       depends_on:         [<slug>, ...]
+#       version:            integer (default 1; bump when behavior changes meaningfully)
 #       description_short:  one-line summary for the recommender's UI
 #
 # Levels are advisory — they reflect real prerequisites, not aesthetic order.
 # When `depends_on` is honored, level is mostly redundant; it exists so the UI
 # can group skills visually (Level 0 = "everything starts here", Level 5 =
 # "ship it").
+#
+# Versioning policy (read by project-skill-advisor for drift detection):
+#   BUMP version when the skill:
+#     - adds a new required step to its procedure
+#     - adds a new file the skill writes
+#     - adds a new field to the schema/sidecar the skill emits
+#     - tightens a heuristic (stricter detection rules)
+#   DO NOT BUMP for:
+#     - typos, doc restructuring, "Pairs Well With" additions
+#     - backward-compatible additive optional fields
+#   When in doubt, bump — re-application is cheap; a quietly drifted project is expensive.
+#   A missing `version:` field is treated as `version: 1` by the advisor.
 
 version: 1
 last_updated: "2026-05-11"
@@ -186,6 +199,14 @@ skills:
     level: null
     depends_on: []
     description_short: "Business PRD -> prds/technical-prd.md + .project-technical-prd.json infra checklist"
+
+  project-readiness-report:
+    type: audit
+    category: planning
+    level: null
+    depends_on: [project-metadata-refiner, project-skill-advisor, project-technical-analyzer]
+    version: 1
+    description_short: "Rolls up the three project side-cars into one 0-100 readiness score + headline + punch-list for portfolio tiles"
 
   # When adding a new skill, append it here AND update README.md's table.
   # `scripts/lint-skills-graph.py` (run by .github/workflows/lint-skills-graph.yml
