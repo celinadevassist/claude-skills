@@ -136,6 +136,13 @@ skills:
     depends_on: [monolith-setup]
     description_short: "Dockerfile + GitHub Actions CI/CD + Portainer stack config + Nginx Proxy Manager setup"
 
+  hetzner-monolith-deploy:
+    type: setup
+    category: ops
+    level: 5
+    depends_on: [monolith-setup]
+    description_short: "Single Hetzner ARM deploy — Caddy auto-HTTPS, GH Actions multi-arch + Watchtower push-to-deploy, Prisma migrate-on-start, nightly B2 backups, MXroute SMTP (alternative to deployment-setup)"
+
   # ---------- Audit skills: can run anytime, no level ordering ----------
 
   bulk-db-audit:
