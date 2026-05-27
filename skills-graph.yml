@@ -208,6 +208,14 @@ skills:
     version: 1
     description_short: "Rolls up the three project side-cars into one 0-100 readiness score + headline + punch-list for portfolio tiles"
 
+  skill-verification-runner:
+    type: audit
+    category: ops
+    level: null
+    depends_on: [project-skill-advisor]
+    version: 1
+    description_short: "Executes nextActions[] from .project-skills.json and stamps verified/verifiedAt per applied skill — runtime half of advisor v2"
+
   # When adding a new skill, append it here AND update README.md's table.
   # `scripts/lint-skills-graph.py` (run by .github/workflows/lint-skills-graph.yml
   # on every push + PR) will fail the build if a skill exists in the repo but
