@@ -217,7 +217,7 @@ After the side-car is written, run an idempotent pass that resolves every `MISSI
 
 | Diagnostic the side-car flagged | Auto-fill action | Source of truth |
 |---|---|---|
-| `MISSING: no og-banner.png` | Write SVG source to `frontend/public/og-banner.svg` using the **rich template** (centered 700px column with header + tagline pill + domain-appropriate preview card; the outer 250px strips on each side are intentionally left clear so the background gradient + dot pattern shows through — see "Rich og-banner" section below). Render to `frontend/public/og-banner.png` (1200×630) via `rsvg-convert`. Bump `$ogBannerVersion` in the side-car and update `og:image` / `twitter:image` URLs to include `?v=N`. Both files commit — SVG is the editable source. | `readme.title` + `readme.tagline` + manifest theme_color + `$findings.inferredPurpose` (for the preview-card content) |
+| `MISSING or OUTDATED: og-banner.png` (file absent **or** the SVG sibling's first comment lacks `<!-- og-banner-template-version: 3 -->` — see "Banner template versioning" below) | Write SVG source to `frontend/public/og-banner.svg` using the **rich template** (centered 700px column with header + tagline pill + domain-appropriate preview card; the outer 250px strips on each side are intentionally left clear so the background gradient + dot pattern shows through — see "Rich og-banner" section below). The very first comment inside `<svg>` MUST be `<!-- og-banner-template-version: 3 -->` so the next audit can detect drift. Render to `frontend/public/og-banner.png` (1200×630) via `rsvg-convert`. Bump `$ogBannerVersion` in the side-car and update `og:image` / `twitter:image` URLs to include `?v=N`. Both files commit — SVG is the editable source. | `readme.title` + `readme.tagline` + manifest theme_color + `$findings.inferredPurpose` (for the preview-card content) |
 | `MISSING: no logo / favicon` | If neither `favicon.svg`, `logo.svg`, nor `logo.png` exists in `frontend/public/` (or project root for non-frontend projects), write a placeholder `logo.svg`: rounded square in manifest theme_color, white project initials (first 2 letters of `readme.title`), 256×256 viewBox. Use until a real logo is designed. | `readme.title` initials + manifest theme_color |
 | `MISSING: no <meta og:*> / twitter:*` in `index.html` | Inject the full og:/twitter: block from the side-car into `<head>` after the existing `<meta name="description">` | `html.og.*` + `html.twitter.*` |
 | `MISSING: no README.md at project root` | Write a real root README: H1, italic tagline, intro paragraph, `## Documentation` pointer to `docs/`, auto-gen marker at bottom | `readme.title` + `readme.tagline` + `readme.intro` |
@@ -242,6 +242,8 @@ Always write **both** files. The SVG is the editable source; the PNG is what Fac
 
 **Layout (v3, centered).** The composition is a single **700 px centered column** (`x: 250 → 950`) carrying header → tagline pill → demonstrative preview card → domain. The two outer **250 px strips** (`x < 250`, `x > 950`) are deliberately empty of text and graphics — the background gradient + dot pattern shows through them as breathing room.
 
+**Banner template versioning — read this before re-running on an existing project.** Each rendered SVG carries an `<!-- og-banner-template-version: N -->` marker as its first comment (immediately after the opening `<svg>` tag — see the template below). When auditing, **read that marker**. If it is **missing** or **below the current template version (3)**, treat the on-disk banner as **OUTDATED** and re-render: delete the existing `og-banner.svg` + `og-banner.png` first, then regenerate per the MISSING branch in the auto-fill table. Also bump `$ogBannerVersion` and the `?v=N` cache-bust in `index.html` so social platforms re-scrape. This makes template upgrades propagate to existing projects on the next refiner run instead of silently keeping stale layouts (which is the bug that caused v2 banners to linger after the v2→v3 rollout).
+
 The template below is the canonical layout. The **preview card** (centered below the tagline) is **domain-appropriate** — pick what to render based on the project's purpose:
 
 | Project type | Preview card shows |
@@ -259,6 +261,7 @@ Pick the closest match; invent specific row contents that match the project's ac
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- og-banner-template-version: 3 -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="<THEME_COLOR>"/>
