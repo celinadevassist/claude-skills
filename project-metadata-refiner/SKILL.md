@@ -217,7 +217,7 @@ After the side-car is written, run an idempotent pass that resolves every `MISSI
 
 | Diagnostic the side-car flagged | Auto-fill action | Source of truth |
 |---|---|---|
-| `MISSING: no og-banner.png` | Write SVG source to `frontend/public/og-banner.svg` using the **rich template** (icon + wordmark + tagline pill + domain-appropriate right-column preview card — see "Rich og-banner" section below). Render to `frontend/public/og-banner.png` (1200×630) via `rsvg-convert`. Bump `$ogBannerVersion` in the side-car and update `og:image` / `twitter:image` URLs to include `?v=N`. Both files commit — SVG is the editable source. | `readme.title` + `readme.tagline` + manifest theme_color + `$findings.inferredPurpose` (for the right-column preview content) |
+| `MISSING: no og-banner.png` | Write SVG source to `frontend/public/og-banner.svg` using the **rich template** (centered 700px column with header + tagline pill + domain-appropriate preview card; the outer 250px strips on each side are intentionally left clear so the background gradient + dot pattern shows through — see "Rich og-banner" section below). Render to `frontend/public/og-banner.png` (1200×630) via `rsvg-convert`. Bump `$ogBannerVersion` in the side-car and update `og:image` / `twitter:image` URLs to include `?v=N`. Both files commit — SVG is the editable source. | `readme.title` + `readme.tagline` + manifest theme_color + `$findings.inferredPurpose` (for the preview-card content) |
 | `MISSING: no logo / favicon` | If neither `favicon.svg`, `logo.svg`, nor `logo.png` exists in `frontend/public/` (or project root for non-frontend projects), write a placeholder `logo.svg`: rounded square in manifest theme_color, white project initials (first 2 letters of `readme.title`), 256×256 viewBox. Use until a real logo is designed. | `readme.title` initials + manifest theme_color |
 | `MISSING: no <meta og:*> / twitter:*` in `index.html` | Inject the full og:/twitter: block from the side-car into `<head>` after the existing `<meta name="description">` | `html.og.*` + `html.twitter.*` |
 | `MISSING: no README.md at project root` | Write a real root README: H1, italic tagline, intro paragraph, `## Documentation` pointer to `docs/`, auto-gen marker at bottom | `readme.title` + `readme.tagline` + `readme.intro` |
@@ -234,13 +234,15 @@ After the side-car is written, run an idempotent pass that resolves every `MISSI
 - **Real `README.md`** if one exists. The side-car's `readme` block is for the *missing* case only.
 - **`og:image`** if one already exists in `index.html`, even if the file behind it 404s. Flag the 404 as a separate diagnostic.
 
-### Rich og-banner — implementation (SVG source + PNG render)  [v2]
+### Rich og-banner — implementation (SVG source + PNG render)  [v3]
 
 Always write **both** files. The SVG is the editable source; the PNG is what Facebook/Twitter/Slack/WhatsApp scrape (they don't fetch SVG). The SVG also doubles as a re-render target — change the text, re-run `rsvg-convert`, ship.
 
-**Why rich, not flat.** Chat-app preview heuristics (WhatsApp, Telegram, iMessage) downgrade flat-text-on-gradient banners to a SMALL left-thumbnail card and reserve the big post-style preview for banners with visual richness (icon + data preview + structured layout). A gradient + wordmark + tagline gets you the small thumbnail. Adding a brand-icon + tagline-pill + right-column data-preview-card flips it to the rich preview every time. This is non-negotiable — banners shipped without a right-column preview will keep getting downgraded.
+**Why rich, not flat.** Chat-app preview heuristics (WhatsApp, Telegram, iMessage) downgrade flat-text-on-gradient banners to a SMALL left-thumbnail card and reserve the big post-style preview for banners with visual richness (header + tagline + structured data preview). A gradient + wordmark + tagline alone gets you the small thumbnail. Stacking a centered header, a tagline pill, and a domain-appropriate data preview card flips it to the rich preview every time. This is non-negotiable — banners shipped without a preview card keep getting downgraded.
 
-The template below is the canonical layout. The right column ("preview card") is **domain-appropriate** — pick what to render based on the project's purpose:
+**Layout (v3, centered).** The composition is a single **700 px centered column** (`x: 250 → 950`) carrying header → tagline pill → demonstrative preview card → domain. The two outer **250 px strips** (`x < 250`, `x > 950`) are deliberately empty of text and graphics — the background gradient + dot pattern shows through them as breathing room.
+
+The template below is the canonical layout. The **preview card** (centered below the tagline) is **domain-appropriate** — pick what to render based on the project's purpose:
 
 | Project type | Preview card shows |
 |---|---|
@@ -274,83 +276,99 @@ Pick the closest match; invent specific row contents that match the project's ac
     </filter>
   </defs>
 
-  <!-- Background gradient -->
+  <!-- Background gradient — full canvas. -->
   <rect width="1200" height="630" fill="url(#bg)"/>
 
-  <!-- Subtle dot grid (texture — prevents flat appearance) -->
-  <g fill="#ffffff" opacity="0.06">
-    <circle cx="140" cy="80"  r="3"/><circle cx="240" cy="130" r="2"/>
-    <circle cx="80"  cy="220" r="4"/><circle cx="340" cy="60"  r="2"/>
-    <circle cx="180" cy="500" r="3"/><circle cx="40"  cy="450" r="2"/>
-    <circle cx="290" cy="580" r="3"/><circle cx="650" cy="50"  r="2"/>
-    <circle cx="1130" cy="560" r="3"/><circle cx="1150" cy="60" r="2"/>
-    <circle cx="980" cy="20" r="2"/><circle cx="1060" cy="600" r="3"/>
+  <!-- Background pattern — concentrated in the 250px clear strips on the
+       LEFT (x < 250) and RIGHT (x > 950) so the texture is what fills the
+       outer thirds. A few sparse dots cross top + bottom for visual cohesion. -->
+  <g fill="#ffffff" opacity="0.10">
+    <!-- LEFT strip -->
+    <circle cx="50"  cy="60"  r="3"/>
+    <circle cx="180" cy="120" r="2"/>
+    <circle cx="90"  cy="210" r="4"/>
+    <circle cx="40"  cy="320" r="2"/>
+    <circle cx="160" cy="390" r="3"/>
+    <circle cx="80"  cy="470" r="2"/>
+    <circle cx="220" cy="540" r="4"/>
+    <circle cx="120" cy="600" r="2"/>
+    <!-- RIGHT strip -->
+    <circle cx="1020" cy="60"  r="3"/>
+    <circle cx="1140" cy="120" r="2"/>
+    <circle cx="970"  cy="220" r="4"/>
+    <circle cx="1110" cy="310" r="2"/>
+    <circle cx="1040" cy="400" r="3"/>
+    <circle cx="1160" cy="480" r="2"/>
+    <circle cx="990"  cy="550" r="4"/>
+    <circle cx="1080" cy="610" r="2"/>
+    <!-- Sparse top + bottom dots crossing center for cohesion -->
+    <circle cx="420" cy="30"  r="2"/>
+    <circle cx="780" cy="40"  r="2"/>
+    <circle cx="500" cy="615" r="2"/>
+    <circle cx="700" cy="610" r="2"/>
   </g>
 
-  <!-- ============== LEFT COLUMN ============== -->
+  <!-- ============ CENTERED COLUMN: x = 250 → 950 (700 wide) ============ -->
 
-  <!-- App icon: rounded square with a single glyph picked per domain
-       ($ for finance, M for menu, ✓ for tasks, ★ for ratings, etc.) -->
-  <rect x="80" y="120" rx="22" ry="22" width="100" height="100" fill="#ffffff"/>
-  <text x="130" y="200" font-family="system-ui,-apple-system,sans-serif"
-        font-size="68" font-weight="800" fill="<THEME_COLOR>"
-        text-anchor="middle"><BRAND_GLYPH></text>
+  <!-- Header — project title, two-line capable, centered. Verbatim project
+       name from readme.title; do NOT abbreviate. Single-line titles leave
+       TITLE_LINE_2 empty (the fixed-y layout stays balanced because the
+       subheader pill + preview card sit at fixed y positions below). -->
+  <text x="600" y="170" font-family="system-ui,-apple-system,sans-serif"
+        font-size="78" font-weight="800" fill="#ffffff"
+        letter-spacing="-2" text-anchor="middle"><TITLE_LINE_1></text>
+  <text x="600" y="250" font-family="system-ui,-apple-system,sans-serif"
+        font-size="78" font-weight="800" fill="#ffffff"
+        letter-spacing="-2" text-anchor="middle"><TITLE_LINE_2></text>
 
-  <!-- Wordmark — split across two lines if > ~12 chars total. Verbatim
-       project name from readme.title; do NOT abbreviate. -->
-  <text x="80" y="320" font-family="system-ui,-apple-system,sans-serif"
-        font-size="82" font-weight="800" fill="#ffffff" letter-spacing="-2"><TITLE_LINE_1></text>
-  <text x="80" y="404" font-family="system-ui,-apple-system,sans-serif"
-        font-size="82" font-weight="800" fill="#ffffff" letter-spacing="-2"><TITLE_LINE_2></text>
-
-  <!-- Tagline pill — keep SHORT (≤ 40 chars) so it doesn't run under
-       the right-column card at x=720. Distill readme.tagline. -->
-  <rect x="80" y="438" width="560" height="48" rx="24" ry="24"
+  <!-- Subheader — distilled tagline as a centered pill. Keep ≤ 50 chars
+       so it fits comfortably inside the 700px column. Distill readme.tagline. -->
+  <rect x="300" y="290" width="600" height="58" rx="29" ry="29"
         fill="#ffffff" opacity="0.14"/>
-  <text x="106" y="470" font-family="system-ui,-apple-system,sans-serif"
-        font-size="22" font-weight="600" fill="#ffffff" opacity="0.95"><TAGLINE_SHORT></text>
+  <text x="600" y="328" font-family="system-ui,-apple-system,sans-serif"
+        font-size="24" font-weight="600" fill="#ffffff" opacity="0.95"
+        text-anchor="middle"><TAGLINE_SHORT></text>
 
-  <!-- Domain line -->
-  <text x="80" y="570" font-family="system-ui,-apple-system,sans-serif"
-        font-size="22" font-weight="500" fill="#ffffff" opacity="0.6"><HOMEPAGE_DOMAIN></text>
-
-  <!-- ============== RIGHT COLUMN: domain-appropriate preview card ============== -->
-  <!-- Renders at x=720, width=400, height=450. Adapt the contents per
-       project type — see table above. The 4-row + footer-total layout is
-       reusable across nearly every domain; just swap the labels + values. -->
-
-  <g transform="translate(720, 100)" filter="url(#cardShadow)">
-    <rect x="0" y="0" width="400" height="450" rx="40" ry="40" fill="url(#cardBg)"/>
+  <!-- ============ DEMONSTRATIVE IMAGE: centered preview card ============ -->
+  <!-- 650 wide × 220 tall, centered (x=275 → 925, y=370 → 590). 25 px
+       breathing room from the 700-column edges. Adapt contents per
+       project type — see table above. 3 data rows + slim footer total
+       is reusable across nearly every domain; just swap labels + values. -->
+  <g transform="translate(275, 370)" filter="url(#cardShadow)">
+    <rect x="0" y="0" width="650" height="220" rx="30" ry="30" fill="url(#cardBg)"/>
 
     <!-- Header row -->
-    <text x="42" y="56" font-family="system-ui,-apple-system,sans-serif"
-          font-size="18" font-weight="700" fill="<THEME_COLOR_DARK_40>"><CARD_TITLE></text>
-    <text x="358" y="56" font-family="system-ui,-apple-system,sans-serif"
+    <text x="36" y="42" font-family="system-ui,-apple-system,sans-serif"
+          font-size="17" font-weight="700" fill="<THEME_COLOR_DARK_40>"><CARD_TITLE></text>
+    <text x="614" y="42" font-family="system-ui,-apple-system,sans-serif"
           font-size="13" font-weight="500" fill="#7a8a99" text-anchor="end"><CARD_SUBTITLE></text>
-    <line x1="42" y1="78" x2="358" y2="78" stroke="#e0e6ec" stroke-width="1"/>
+    <line x1="36" y1="60" x2="614" y2="60" stroke="#e0e6ec" stroke-width="1"/>
 
-    <!-- 4 data rows (icon-chip + primary + secondary + right-aligned value).
-         y values: 116, 168, 220, 272 -->
+    <!-- 3 data rows (icon-chip + primary + secondary + right-aligned value).
+         y baselines: 90, 124, 158 -->
     <g font-family="system-ui,-apple-system,sans-serif">
       <!-- Row 1 -->
-      <circle cx="60" cy="116" r="15" fill="#dbeafe"/>
-      <text x="60" y="121" font-size="14" font-weight="700" fill="<THEME_COLOR>" text-anchor="middle"><ROW1_GLYPH></text>
-      <text x="88" y="112" font-size="14" font-weight="600" fill="<THEME_COLOR_DARK_40>"><ROW1_PRIMARY></text>
-      <text x="88" y="130" font-size="11" fill="#7a8a99"><ROW1_SECONDARY></text>
-      <text x="358" y="118" font-size="15" font-weight="700" fill="<THEME_COLOR_DARK_40>" text-anchor="end"><ROW1_VALUE></text>
-      <!-- Rows 2-4 follow the same pattern with y=168/220/272 and
+      <circle cx="56" cy="90" r="13" fill="#dbeafe"/>
+      <text x="56" y="94" font-size="12" font-weight="700" fill="<THEME_COLOR>" text-anchor="middle"><ROW1_GLYPH></text>
+      <text x="84" y="86"  font-size="13" font-weight="600" fill="<THEME_COLOR_DARK_40>"><ROW1_PRIMARY></text>
+      <text x="84" y="102" font-size="11" fill="#7a8a99"><ROW1_SECONDARY></text>
+      <text x="614" y="92" font-size="14" font-weight="700" fill="<THEME_COLOR_DARK_40>" text-anchor="end"><ROW1_VALUE></text>
+      <!-- Rows 2-3 follow the same pattern with y=124 / 158 and
            varying chip colors (#fef3c7 amber, #dcfce7 mint, #fce7f3 pink) -->
     </g>
 
-    <!-- Footer: aggregate label + value + progress bar -->
-    <line x1="42" y1="324" x2="358" y2="324" stroke="#e0e6ec" stroke-width="1"/>
-    <text x="42" y="358" font-size="13" font-weight="500" fill="#7a8a99"><FOOTER_LABEL></text>
-    <text x="358" y="358" font-size="22" font-weight="800" fill="<THEME_COLOR>" text-anchor="end"><FOOTER_VALUE></text>
-
-    <text x="42" y="390" font-size="11" font-weight="500" fill="#7a8a99"><PROGRESS_LABEL></text>
-    <rect x="42" y="402" width="316" height="8" rx="4" ry="4" fill="#e0e6ec"/>
-    <rect x="42" y="402" width="<PROGRESS_FILL_WIDTH>" height="8" rx="4" ry="4" fill="<THEME_COLOR>"/>
+    <!-- Footer aggregate -->
+    <line x1="36" y1="182" x2="614" y2="182" stroke="#e0e6ec" stroke-width="1"/>
+    <text x="36"  y="204" font-family="system-ui,-apple-system,sans-serif"
+          font-size="12" font-weight="500" fill="#7a8a99"><FOOTER_LABEL></text>
+    <text x="614" y="204" font-family="system-ui,-apple-system,sans-serif"
+          font-size="18" font-weight="800" fill="<THEME_COLOR>" text-anchor="end"><FOOTER_VALUE></text>
   </g>
+
+  <!-- Domain line — bottom-center, small + dim. -->
+  <text x="600" y="613" font-family="system-ui,-apple-system,sans-serif"
+        font-size="18" font-weight="500" fill="#ffffff" opacity="0.55"
+        text-anchor="middle"><HOMEPAGE_DOMAIN></text>
 </svg>
 ```
 
