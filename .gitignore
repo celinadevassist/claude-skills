@@ -1,3 +1,7 @@
 # claude-flow daemon runtime state — local-only, mutates per-session
+# (covers both repo root .claude-flow/ and any per-skill .claude-flow/ that
+# gets created when skill-builder runs inside a skill directory)
 .claude-flow/data/
 .claude-flow/sessions/
+**/.claude-flow/data/
+**/.claude-flow/sessions/

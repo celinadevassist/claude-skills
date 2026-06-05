@@ -163,6 +163,28 @@ skills:
     depends_on: [monolith-setup]
     description_short: "Add a project to an EXISTING shared host running Caddy + sibling projects — no Docker, systemd unit (prod + dev) + Caddy reverse-proxy block + sslip.io subdomain + scripts/deploy.sh + actions-ssh CD (the mission-control / ems / cartflow / idea-keep pattern; sibling of deployment-setup and hetzner-monolith-deploy)"
 
+  # The two skills below are siblings to the deploy trio above but target a different host model:
+  # an EXISTING multi-tenant CloudPanel host (e.g. cloudpanel-1) running external WP/WooCommerce
+  # sites, not a project-from-this-repo monolith. depends_on is empty for cloudpanel-site-add
+  # because the CloudPanel host itself is external to this repo (no hetzner-cloudpanel-provision
+  # skill yet); wp-bot-hardening's only repo prerequisite is cloudpanel-site-add.
+
+  cloudpanel-site-add:
+    type: setup
+    category: ops
+    level: 5
+    depends_on: []
+    description_short: "Add a WP/WooCommerce tenant to an EXISTING multi-tenant CloudPanel host (Hetzner) — Linux user + nginx vhost + DB (MySQL native or per-site MariaDB-Docker sidecar for Hostinger uca1400 collations) + WP files + optional Hostinger-migration mode (sslip.io alias + LE cert + wp-config overrides); pair wp-bot-hardening after"
+
+  # ---------- Level 6: Post-deploy hardening ----------
+
+  wp-bot-hardening:
+    type: setup
+    category: ops
+    level: 6
+    depends_on: [cloudpanel-site-add]
+    description_short: "Block ~25 scraper / AI-training / SEO crawlers at nginx (MJ12bot, PetalBot, Bytespider, GPTBot, ClaudeBot — keeps Googlebot/Bingbot/Applebot) + deny /xmlrpc.php + replace WP-cron-via-HTTP with /etc/cron.d 5-min runner; idempotent + marker-commented; run after cloudpanel-site-add"
+
   # ---------- Audit skills: can run anytime, no level ordering ----------
 
   bulk-db-audit:
