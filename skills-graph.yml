@@ -108,6 +108,13 @@ skills:
     depends_on: [monolith-setup]
     description_short: "EN+AR bilingual + RTL + Cairo+Inter font pairing + Arabic-safe PDF/Excel"
 
+  realtime-feed-sse-or-socketio:
+    type: setup
+    category: ui
+    level: 2
+    depends_on: [jwt-auth-admin-seeded, monolith-setup]
+    description_short: "SSE / Socket.IO live ticker for NestJS + React; replaces Refresh-button UX with a LIVE chip"
+
   # ---------- Level 3: UI sugar that benefits from earlier patterns ----------
 
   spotlight-cmdk:
