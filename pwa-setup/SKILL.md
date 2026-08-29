@@ -532,6 +532,7 @@ curl -sI https://APPNAME.IP.sslip.io/sw.js | head -1
 | API responses cached forever in installed app | A `runtimeCaching` rule that catches `/api/*` with `CacheFirst` or `StaleWhileRevalidate` | Force `/api/*` to `NetworkOnly` (see Step 2). |
 | Camera prompt fails silently in installed PWA | Service worker hijacking `getUserMedia` somehow, or no HTTPS | Confirm site is HTTPS; camera in PWAs requires HTTPS. |
 | Service worker active in dev, breaks HMR | `devOptions.enabled: true` | Keep `devOptions.enabled: false` (default in this skill). Test PWA on the deployed dev URL, not local Vite. |
+| Installed app renders desktop layout / tiny text on a phone | Chrome Android's ⋮ → "Desktop site" checkbox is remembered per domain and inherited by the WebAPK — UA spoofed, viewport meta ignored (~980px layout viewport). No site-side opt-out exists. | Apply the `pwa-desktop-site-guard` skill (detection + zoom simulation + `useIsMobile()` migration). Quick user-side fix: uncheck Desktop site in a Chrome tab. |
 
 ---
 

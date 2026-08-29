@@ -33,7 +33,7 @@
 #   A missing `version:` field is treated as `version: 1` by the advisor.
 
 version: 1
-last_updated: "2026-05-11"
+last_updated: "2026-08-29"
 
 categories:
   foundation: "Module structure + base infrastructure"
@@ -139,6 +139,13 @@ skills:
     description_short: "Mantine breakpoint discipline: responsive Grid/SimpleGrid spans, ScrollArea for terminals/tables, no fixed widths"
 
   # ---------- Level 4: Operational surfaces (introspect the system) ----------
+
+  pwa-desktop-site-guard:
+    type: setup
+    category: ui
+    level: 4
+    depends_on: [pwa-setup]
+    description_short: "Guard installed PWA against Chrome's Desktop-site mode: detection + zoom simulation + useIsMobile migration"
 
   setup-guide-page:
     type: setup
