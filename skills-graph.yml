@@ -229,6 +229,13 @@ skills:
     depends_on: [wp-migrate-guru-import, cloudflare-dns-setup]
     description_short: "The 'after DNS cutover' sweep for a WP/WC migration — WooCommerce-safe two-pass wp search-replace (sslip→real-domain, --precise --skip-columns=guid), strips MIGRATION_TEMP_OVERRIDE from wp-config.php, reissues real Let's Encrypt cert for apex + www, flushes caches, smoke-tests HTTPS + cert chain + no-sslip-leftovers + email DNS; idempotent; run once `dig $DOMAIN @1.1.1.1` returns the new origin IP"
 
+  slt-payment-hub:
+    type: setup
+    category: data
+    level: 2
+    depends_on: []
+    description_short: "Integrate the SLT Payment Hub (multi-gateway checkout, signed redirects + webhooks, refunds, EG SMS) — the traps: minor units, raw-body HMAC, idempotency semantics"
+
   # ---------- Audit skills: can run anytime, no level ordering ----------
 
   bulk-db-audit:
