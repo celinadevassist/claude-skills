@@ -115,6 +115,19 @@ payment.
 7. **Credentials live server-side only** — in DB settings or root-owned
    `/etc/*.env`, never in code or frontend. Rotate via multiple active
    credentials.
+8. **Company gateway currency listings LIE, and the hub only auto-routes to
+   the default gateway** (seen live 2026-09-28, ARMADORN company): an Egypt
+   PayTabs profile (secure-egypt.paytabs.com) was listed as
+   EGP/AED/SAR/USD-capable but only EGP actually opened a session
+   ("Could not create a checkout session at the gateway" for the rest),
+   while the Ziina entry listed AED-only yet charged SAR and USD fine.
+   Never trust `/api/v1/gateways` currencies as ground truth, and never
+   assume the hub picks a working gateway for a non-default currency.
+   Robust pattern (CartFlow's SltHubGateway): discover gateways (cache
+   ~5 min per merchant), try candidates in listing order, and on that
+   exact session-creation 400 retry the next gateway **with the same
+   Idempotency-Key** — one hub payment, never a double charge; rethrow
+   any other 400 immediately.
 
 ## Company Settings (the dashboard form)
 
