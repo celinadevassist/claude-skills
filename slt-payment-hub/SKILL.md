@@ -127,20 +127,46 @@ payment.
   the store (where the order-confirmation logic and sweeps run), under a
   raw-body-preserving route.
 
-## CartFlow-Specific Notes (first consumer, 2026-09)
+## CartFlow-Specific Notes (first consumer — IMPLEMENTED 2026-09-28)
 
-- Adapter slot: `backend/src/storefront/payment-gateways.ts` — existing
-  Ziina/PayTabs/Paymob adapters take `{ successUrl, … }` and return
-  `{ intentId, redirectUrl }`; a hub adapter fits the same shape with
-  `payment_id` → `intentId`, `checkout_url` → `redirectUrl`.
-- Return page: the storefront's `/pay/return` (`${siteUrl}${localePrefix}/pay/return?o=<order>&t=<token>`)
-  — must additionally read/verify the hub's `payment_id/status/ts/sig` params.
-- Webhook: mount under `/api/webhooks/` (raw body preserved there).
+- Shared client: `backend/src/shared/payment/slt/slt-hub.client.ts` —
+  `SltHubClient` (create/get payment, gateways) + `toMinorUnits()` +
+  `verifySltWebhookSignature()` / `verifySltRedirectSignature()` (timing-safe,
+  stale-ts rejection). Unit-tested in `slt-hub.client.spec.ts` (16 tests incl.
+  the 4898.6 float trap and re-serialized-body negative).
+- Storefront adapter: `SltHubGateway` in
+  `backend/src/storefront/payment-gateways.ts` (`id: 'slt'`), factory branch
+  needs `payments.slt.merchantId + secretKey`. Idempotency-Key = orderNumber;
+  `returnUrl` = per-order successUrl; `language` from `/ar/` in the URL;
+  `sendSms` from `payments.slt.sendSms`. `refunded` verifies as `'paid'`,
+  `cancelPayment` is a no-op (24 h link expiry).
+- Webhook: `POST /api/webhooks/slt`
+  (`backend/src/storefront/webhook.controller.ts`) — raw-body verified
+  against the owning store's `payments.slt.webhookSecret` AND the platform
+  `SLT_WEBHOOK_SECRET`; every failure is the same 401 (no oracle). A verified
+  store event reconciles through `confirmPayment` (which re-GETs the hub —
+  webhooks never confirm directly).
+- Dashboard: Storefront → Payments — 'SLT Payment Hub' market option (all
+  three markets) + credentials card (Merchant ID / Secret key / Webhook
+  secret / SMS toggle) + connection test. Whitelist lives in FOUR places when
+  adding a gateway: `store/dto.update.ts` (types + Joi), `store/service.ts`
+  merge, `storefront/notify.controller.ts` mask + test list,
+  `StorefrontService.GATEWAY_CURRENCIES`.
+- Platform client (CartFlow's own hub company, for subscription billing):
+  `backend/src/shared/payment/slt/slt-hub.service.ts` reads
+  `SLT_MERCHANT_ID` / `SLT_SECRET_KEY` / `SLT_WEBHOOK_SECRET` from
+  `backend/.env`; warns at boot when unset. Subscriptions still charge via
+  Ziina until explicitly switched.
 - ARMADORN company values: logo
   `https://wp.armadorn.com/wp-content/uploads/2025/12/cropped-Logo_Only-scaled-1.png`,
   backward link `https://armadorn.com/pay/return`, webhook
   `https://cartflow.46.62.210.62.sslip.io/api/webhooks/slt` (the box running
   the storefront payment sweeps; the smartlabtec prod dashboard does not).
+- CartFlow company values (platform billing): logo
+  `https://cartflow.smartlabtec.com/icons/icon-512.png`, backward link
+  `https://cartflow.smartlabtec.com/payment/success`, webhook
+  `https://cartflow.smartlabtec.com/api/webhooks/slt` (prod owns
+  subscriptions; route 404s there until the next docker pull deploy).
 - Markets: ARMADORN sells EGP/AED/SAR — confirm via `GET /api/v1/gateways`
   that the hub company has a gateway enabled for each currency before removing
   the direct Ziina integration (Ziina covers AED/SAR/USD today).
